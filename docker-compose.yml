@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cti
+      POSTGRES_PASSWORD: cti_dev_password
+      POSTGRES_DB: cti
+    ports:
+      - "5440:5432"
+    volumes:
+      - cti_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cti"]
+      interval: 5s
+      retries: 10
+
+  # Job queue backing store (BullMQ): API → sync worker commands + the worker's schedules.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # AOF so queued jobs survive a Redis restart; noeviction is required by BullMQ.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "6390:6379"
+    volumes:
+      - cti_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  # NVD / KEV / EPSS ingestion. Shares the same database and queue; the API enqueues "sync now" requests to it.
+  sync-worker:
+    build: ../cti-sync-worker
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    env_file: ../cti-sync-worker/.env # NVD_API_KEY, cron schedules
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://cti:cti_dev_password@postgres:5432/cti
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "4100:4100"
+
+volumes:
+  cti_pg:
+  cti_redis:
