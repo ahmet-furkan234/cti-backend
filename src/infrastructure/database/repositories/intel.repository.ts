@@ -1,7 +1,7 @@
 import { and, eq, sql, type SQL } from 'drizzle-orm';
 import { inject, injectable } from 'inversify';
 import { TYPES } from '../../../shared/tokens.js';
-import type { IIntelRepository, IocList, ListIocsQuery, NewIoc, NewWatchlist, Watchlist, WatchlistHit } from '../../../domain/intel/intel.repository.interface.js';
+import type { FindingList, FindingsQuery, IIntelRepository, IocAsset, IocList, ListIocsQuery, NewIoc, NewKev, NewWatchlist, Watchlist, WatchlistHit } from '../../../domain/intel/intel.repository.interface.js';
 import { tenant } from '../../../shared/tenant.js';
 import type { Database } from '../client.js';
 import { iocs, watchlists } from '../schema/index.js';
@@ -11,12 +11,13 @@ const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&');
 
 const IPV4 = String.raw`'^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$'`;
 /** Inventory assets an indicator points at (address, host name or a range containing the address). */
-const IOC_MATCHES = sql`(select count(*)::int from assets a where a.company_id = i.company_id and case i.type
+const IOC_ON_ASSET = sql`(case i.type
   when 'ipv4' then a.addr = i.value
   when 'ipv6' then lower(a.addr) = lower(i.value)
   when 'domain' then lower(a.name) = lower(i.value) or lower(coalesce(a.addr, '')) like '%' || lower(i.value) || '%'
   when 'cidr' then (case when a.addr ~ ${sql.raw(IPV4)} then a.addr::inet <<= i.value::cidr else false end)
   else false end)`;
+const IOC_MATCHES = sql`(select count(*)::int from assets a where a.company_id = i.company_id and ${IOC_ON_ASSET})`;
 
 /** Assets covered by a watchlist w: by component (vendor / product) or, when none is set, by tag. */
 const COVERS = sql`(a.company_id = w.company_id
@@ -65,6 +66,54 @@ export class IntelRepository implements IIntelRepository {
   async notifying() {
     const rows = await this.db.select().from(watchlists).where(and(eq(watchlists.companyId, tenant.id()), sql`${watchlists.enabled} and ${watchlists.channelId} is not null`));
     return rows.map((w) => ({ id: w.id, name: w.name, channelId: w.channelId!, evaluatedAt: w.evaluatedAt }));
+  }
+
+  async findings(q: FindingsQuery): Promise<FindingList> {
+    const since = new Date(Date.now() - q.days * 86_400_000);
+    const res = await this.db.execute(sql`select av.id, w.id as watchlist_id, w.name as watchlist, av.cve_id, c.cvss_score, c.is_kev, c.epss,
+        a.id as asset_id, a.name as asset, a.env, av.component, av.first_seen_at, count(*) over()::int as total
+      from watchlists w, asset_vulns av join assets a on a.id = av.asset_id join cve c on c.id = av.cve_id
+      where w.company_id = ${tenant.id()} and w.enabled${q.watchlistId ? sql` and w.id = ${q.watchlistId}` : sql``} and ${COVERS}
+        and av.status in ('open', 'in_progress') and av.first_seen_at > ${since}
+        and c.cvss_score >= w.min_cvss and (not w.kev_only or c.is_kev) and c.epss * 100 >= w.min_epss
+        and (cardinality(w.vendors) + cardinality(w.products) = 0
+          or split_part(av.component, ':', 1) = any(w.vendors) or split_part(av.component, ':', 2) = any(w.products))
+      order by c.is_kev desc, c.cvss_score desc, av.first_seen_at desc limit ${q.limit}`);
+    const rows = rowsOf<Record<string, unknown>>(res);
+    return {
+      total: Number(rows[0]?.['total'] ?? 0),
+      items: rows.map((r) => ({
+        id: `${r['id'] as string}:${r['watchlist_id'] as string}`, watchlistId: r['watchlist_id'] as string, watchlist: r['watchlist'] as string,
+        cve: r['cve_id'] as string, cvss: Number(r['cvss_score']), kev: r['is_kev'] as boolean, epss: Number(r['epss']),
+        assetId: r['asset_id'] as string, asset: r['asset'] as string, env: r['env'] as string, component: r['component'] as string,
+        firstSeenAt: new Date(r['first_seen_at'] as string),
+      })),
+    };
+  }
+
+  async iocAssets(id: string): Promise<IocAsset[]> {
+    const res = await this.db.execute(sql`select a.id, a.name, a.addr, a.env, a.exposed,
+        (select count(*)::int from asset_vulns av where av.asset_id = a.id and av.status in ('open', 'in_progress')) as open_vulns
+      from iocs i join assets a on a.company_id = i.company_id
+      where i.id = ${id} and i.company_id = ${tenant.id()} and ${IOC_ON_ASSET}
+      order by open_vulns desc, a.name limit 50`);
+    return rowsOf<Record<string, unknown>>(res).map((r) => ({
+      id: r['id'] as string, name: r['name'] as string, addr: (r['addr'] as string | null) ?? null, env: r['env'] as string,
+      exposed: r['exposed'] as boolean, openVulns: Number(r['open_vulns']),
+    }));
+  }
+
+  async newKev(days: number, limit: number): Promise<NewKev[]> {
+    const since = new Date(Date.now() - days * 86_400_000);
+    const res = await this.db.execute(sql`select c.id, c.cvss_score, c.epss, c.kev_ransomware, c.kev_added,
+        (select count(distinct av.asset_id)::int from asset_vulns av join assets a on a.id = av.asset_id
+          where av.cve_id = c.id and a.company_id = ${tenant.id()} and av.status in ('open', 'in_progress')) as assets
+      from cve c where c.is_kev and c.kev_added >= ${since}
+      order by assets desc, c.kev_added desc limit ${limit}`);
+    return rowsOf<Record<string, unknown>>(res).map((r) => ({
+      cve: r['id'] as string, cvss: Number(r['cvss_score']), epss: Number(r['epss']), ransomware: r['kev_ransomware'] as boolean,
+      addedAt: new Date(r['kev_added'] as string), assets: Number(r['assets']),
+    }));
   }
 
   async hitsSince(id: string, since: Date): Promise<WatchlistHit[]> {

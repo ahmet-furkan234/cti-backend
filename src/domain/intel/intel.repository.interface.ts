@@ -51,7 +51,57 @@ export interface WatchlistHit {
   line: string;
 }
 
+export interface FindingsQuery {
+  /** only findings first seen within this many days */
+  days: number;
+  watchlistId?: string | undefined;
+  limit: number;
+}
+
+/** An open finding on an asset that a watchlist follows. */
+export interface WatchlistFinding {
+  id: string;
+  watchlistId: string;
+  watchlist: string;
+  cve: string;
+  cvss: number;
+  kev: boolean;
+  epss: number;
+  assetId: string;
+  asset: string;
+  env: string;
+  component: string;
+  firstSeenAt: Date;
+}
+export interface FindingList {
+  items: WatchlistFinding[];
+  total: number;
+}
+
+export interface IocAsset {
+  id: string;
+  name: string;
+  addr: string | null;
+  env: string;
+  exposed: boolean;
+  openVulns: number;
+}
+
+/** A CVE added to the known-exploited catalog recently, with how many of the company's assets it touches. */
+export interface NewKev {
+  cve: string;
+  cvss: number;
+  epss: number;
+  ransomware: boolean;
+  addedAt: Date;
+  assets: number;
+}
+
 export interface IIntelRepository {
+  findings(query: FindingsQuery): Promise<FindingList>;
+  /** inventory assets the indicator points at */
+  iocAssets(id: string): Promise<IocAsset[]>;
+  newKev(days: number, limit: number): Promise<NewKev[]>;
   /** enabled lists that notify a channel, with the time they were last looked at */
   notifying(): Promise<{ id: string; name: string; channelId: string; evaluatedAt: Date }[]>;
   /** findings first seen after `since` that the list follows */

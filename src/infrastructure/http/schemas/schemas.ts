@@ -261,6 +261,13 @@ export const listIocsQuery = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
+export const intelFindingsQuery = z.object({
+  days: z.coerce.number().int().min(1).max(90).default(7),
+  watchlistId: uuid.optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+export const intelDaysQuery = z.object({ days: z.coerce.number().int().min(1).max(90).default(7) });
+
 // ---- reports
 const template = z.enum(['exec', 'kev', 'sla', 'owner']);
 const formats = z.array(z.enum(['csv'])).min(1).max(1);

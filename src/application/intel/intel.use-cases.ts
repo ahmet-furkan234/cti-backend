@@ -1,6 +1,6 @@
 import { inject, injectable } from 'inversify';
 import { TYPES } from '../../shared/tokens.js';
-import type { IIntelRepository, ListIocsQuery, NewIoc, NewWatchlist } from '../../domain/intel/intel.repository.interface.js';
+import type { FindingsQuery, IIntelRepository, ListIocsQuery, NewIoc, NewWatchlist } from '../../domain/intel/intel.repository.interface.js';
 import { NotFoundException } from '../../domain/common/exceptions.js';
 import { AuditService } from '../audit/audit.service.js';
 import { auditActor, type Actor } from '../shared/actor.js';
@@ -15,6 +15,9 @@ export class IntelUseCases {
 
   watchlists() { return this.repo.watchlists(); }
   iocs(q: ListIocsQuery) { return this.repo.iocs(q); }
+  findings(q: FindingsQuery) { return this.repo.findings(q); }
+  iocAssets(id: string) { return this.repo.iocAssets(id); }
+  newKev(days: number) { return this.repo.newKev(days, 20); }
 
   async createWatchlist(actor: Actor, input: NewWatchlist) {
     const w = await this.repo.createWatchlist(input);

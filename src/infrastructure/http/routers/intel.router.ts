@@ -37,6 +37,15 @@ export class IntelRouter {
       res.status(204).end();
     }));
 
+    r.get('/findings', read, check({ query: S.intelFindingsQuery }), wrap(async (req, res) => {
+      res.json(await this.c.findings(valid(req, { query: S.intelFindingsQuery }).query));
+    }));
+    r.get('/new-kev', read, check({ query: S.intelDaysQuery }), wrap(async (req, res) => {
+      res.json(await this.c.newKev(valid(req, { query: S.intelDaysQuery }).query.days));
+    }));
+    r.get('/iocs/:id/assets', read, check({ params: S.idParams }), wrap(async (req, res) => {
+      res.json(await this.c.iocAssets(valid(req, { params: S.idParams }).params.id));
+    }));
     r.get('/iocs', read, check({ query: S.listIocsQuery }), wrap(async (req, res) => {
       res.json(await this.c.iocs(valid(req, { query: S.listIocsQuery }).query));
     }));
