@@ -56,5 +56,13 @@ export class UserRouter {
       await this.c.revokeSessions(actorOf(req), valid(req, { params: S.idParams }).params.id);
       res.status(204).end();
     }));
+    r.get('/:id/sessions', needOrSelf(P.USER_READ), check({ params: S.idParams }), wrap(async (req, res) => {
+      res.json(await this.c.sessions(actorOf(req), valid(req, { params: S.idParams }).params.id));
+    }));
+    r.delete('/:id/sessions/:sessionId', needOrSelf(P.USER_UPDATE), check({ params: S.userSessionParams }), wrap(async (req, res) => {
+      const p = valid(req, { params: S.userSessionParams }).params;
+      await this.c.revokeSession(actorOf(req), p.id, p.sessionId);
+      res.status(204).end();
+    }));
   }
 }

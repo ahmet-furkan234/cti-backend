@@ -12,6 +12,7 @@ export const resetPasswordBody = z.object({ token: z.string().min(20).max(200), 
 export const changePasswordBody = z.object({ currentPassword: z.string().min(1).max(128), newPassword: password });
 export const tokenParams = z.object({ token: z.string().min(20).max(200) });
 export const idParams = z.object({ id: uuid });
+export const userSessionParams = z.object({ id: uuid, sessionId: uuid });
 
 export const listUsersQuery = z.object({
   q: z.string().trim().max(100).optional(),

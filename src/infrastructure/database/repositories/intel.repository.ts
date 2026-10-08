@@ -19,7 +19,8 @@ const IOC_MATCHES = sql`(select count(*)::int from assets a where a.company_id =
   else false end)`;
 
 /** Assets covered by a watchlist w: by component (vendor / product) or, when none is set, by tag. */
-const COVERS = sql`(a.company_id = w.company_id and (cardinality(w.vendors) = 0 and cardinality(w.products) = 0 and w.tag <> '')
+const COVERS = sql`(a.company_id = w.company_id
+  and ((cardinality(w.vendors) = 0 and cardinality(w.products) = 0 and w.tag <> '')
     or exists (select 1 from asset_vulns v where v.asset_id = a.id and (split_part(v.component, ':', 1) = any(w.vendors) or split_part(v.component, ':', 2) = any(w.products)))
     or exists (select 1 from asset_software s where s.asset_id = a.id and (lower(s.vendor) = any(w.vendors) or lower(s.product) = any(w.products))))
   and (w.tag = '' or w.tag = any(a.tags)))`;

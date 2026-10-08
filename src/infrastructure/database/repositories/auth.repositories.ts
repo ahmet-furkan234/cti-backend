@@ -1,4 +1,4 @@
-import { and, eq, isNull, ne } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, ne } from 'drizzle-orm';
 import { inject, injectable } from 'inversify';
 import { TYPES } from '../../../shared/tokens.js';
 import type {
@@ -35,6 +35,14 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
     const conds = [eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)];
     if (exceptFamilyId) conds.push(ne(refreshTokens.familyId, exceptFamilyId));
     await this.db.update(refreshTokens).set({ revokedAt: new Date() }).where(and(...conds));
+  }
+
+  async listActiveForUser(userId: string): Promise<RefreshToken[]> {
+    return this.db.select().from(refreshTokens).where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt), gt(refreshTokens.expiresAt, new Date()))).orderBy(desc(refreshTokens.createdAt));
+  }
+
+  async revokeFamilyForUser(userId: string, familyId: string): Promise<void> {
+    await this.db.update(refreshTokens).set({ revokedAt: new Date() }).where(and(eq(refreshTokens.userId, userId), eq(refreshTokens.familyId, familyId), isNull(refreshTokens.revokedAt)));
   }
 }
 

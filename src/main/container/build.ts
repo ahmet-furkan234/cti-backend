@@ -45,7 +45,7 @@ import {
 } from '../../application/auth/use-cases/auth-token.use-cases.js';
 import {
   CreateUserUseCase, DeleteUserUseCase, GetUserEffectivePermissionsUseCase, GetUserUseCase, InviteUserUseCase,
-  IssuePasswordResetUseCase, ListUsersUseCase, RevokeUserSessionsUseCase, SetUserPermissionOverridesUseCase,
+  IssuePasswordResetUseCase, ListUserSessionsUseCase, ListUsersUseCase, RevokeUserSessionUseCase, RevokeUserSessionsUseCase, SetUserPermissionOverridesUseCase,
   UpdateUserUseCase,
 } from '../../application/user/use-cases/user.use-cases.js';
 import {
@@ -148,6 +148,8 @@ export function buildContainer(): BuiltContainer {
   container.bind(TYPES.GetUserEffectivePermissionsUseCase).to(GetUserEffectivePermissionsUseCase);
   container.bind(TYPES.IssuePasswordResetUseCase).to(IssuePasswordResetUseCase);
   container.bind(TYPES.RevokeUserSessionsUseCase).to(RevokeUserSessionsUseCase);
+  container.bind(TYPES.ListUserSessionsUseCase).to(ListUserSessionsUseCase);
+  container.bind(TYPES.RevokeUserSessionUseCase).to(RevokeUserSessionUseCase);
 
   container.bind(TYPES.ListRolesUseCase).to(ListRolesUseCase);
   container.bind(TYPES.GetRoleUseCase).to(GetRoleUseCase);

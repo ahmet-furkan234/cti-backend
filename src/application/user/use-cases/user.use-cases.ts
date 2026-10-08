@@ -340,3 +340,44 @@ export class RevokeUserSessionsUseCase {
     await this.audit.record(auditActor(actor), AuditAction.userSessionsRevoked, { type: 'user', id });
   }
 }
+
+@injectable()
+export class ListUserSessionsUseCase {
+  constructor(
+    @inject(TYPES.IUserRepository) private readonly users: IUserRepository,
+    @inject(TYPES.IRefreshTokenRepository) private readonly refreshRepo: IRefreshTokenRepository,
+    @inject(TYPES.EffectivePermissionService) private readonly perms: EffectivePermissionService,
+  ) {}
+
+  async execute(actor: Actor, id: string) {
+    await loadCompanyUser(this.users, id);
+    if (actor.id !== id) await assertCanManageUser(this.perms, actor.permissions, id);
+    const sessions = await this.refreshRepo.listActiveForUser(id);
+    return {
+      items: sessions.map((session) => ({
+        id: session.familyId,
+        ip: session.ip,
+        userAgent: session.userAgent,
+        lastSeenAt: session.createdAt,
+        expiresAt: session.expiresAt,
+      })),
+    };
+  }
+}
+
+@injectable()
+export class RevokeUserSessionUseCase {
+  constructor(
+    @inject(TYPES.IUserRepository) private readonly users: IUserRepository,
+    @inject(TYPES.IRefreshTokenRepository) private readonly refreshRepo: IRefreshTokenRepository,
+    @inject(TYPES.EffectivePermissionService) private readonly perms: EffectivePermissionService,
+    @inject(TYPES.AuditService) private readonly audit: AuditService,
+  ) {}
+
+  async execute(actor: Actor, id: string, sessionId: string): Promise<void> {
+    await loadCompanyUser(this.users, id);
+    if (actor.id !== id) await assertCanManageUser(this.perms, actor.permissions, id);
+    await this.refreshRepo.revokeFamilyForUser(id, sessionId);
+    await this.audit.record(auditActor(actor), AuditAction.userSessionsRevoked, { type: 'user', id }, { sessionId });
+  }
+}

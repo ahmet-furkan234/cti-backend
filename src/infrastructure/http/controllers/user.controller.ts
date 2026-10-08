@@ -3,7 +3,7 @@ import { TYPES } from '../../../shared/tokens.js';
 import type { Actor } from '../../../application/shared/actor.js';
 import type { OverrideEffect } from '../../../domain/rbac/effective-permissions.js';
 import type { UserStatus } from '../../../domain/user/user.entity.js';
-import { CreateUserUseCase, DeleteUserUseCase, GetUserEffectivePermissionsUseCase, GetUserUseCase, InviteUserUseCase, IssuePasswordResetUseCase, ListUsersUseCase, RevokeUserSessionsUseCase, SetUserPermissionOverridesUseCase, UpdateUserUseCase } from '../../../application/user/use-cases/user.use-cases.js';
+import { CreateUserUseCase, DeleteUserUseCase, GetUserEffectivePermissionsUseCase, GetUserUseCase, InviteUserUseCase, IssuePasswordResetUseCase, ListUserSessionsUseCase, ListUsersUseCase, RevokeUserSessionUseCase, RevokeUserSessionsUseCase, SetUserPermissionOverridesUseCase, UpdateUserUseCase } from '../../../application/user/use-cases/user.use-cases.js';
 
 @injectable()
 export class UserController {
@@ -26,6 +26,8 @@ export class UserController {
     private readonly reset_: IssuePasswordResetUseCase,
     @inject(TYPES.RevokeUserSessionsUseCase)
     private readonly revoke_: RevokeUserSessionsUseCase,
+    @inject(TYPES.ListUserSessionsUseCase) private readonly sessions_: ListUserSessionsUseCase,
+    @inject(TYPES.RevokeUserSessionUseCase) private readonly revokeSession_: RevokeUserSessionUseCase,
   ) {}
 
   //TODO : Parametreleri bu şekilde alınmıcak daha temiz bir yapı olucak
@@ -80,5 +82,11 @@ export class UserController {
   }
   revokeSessions(a: Actor, id: string) {
     return this.revoke_.execute(a, id);
+  }
+  sessions(a: Actor, id: string) {
+    return this.sessions_.execute(a, id);
+  }
+  revokeSession(a: Actor, id: string, sessionId: string) {
+    return this.revokeSession_.execute(a, id, sessionId);
   }
 }

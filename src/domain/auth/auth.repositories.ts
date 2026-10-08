@@ -16,6 +16,8 @@ export interface IRefreshTokenRepository {
   revoke(id: string): Promise<void>;
   revokeFamily(familyId: string): Promise<void>;
   revokeAllForUser(userId: string, exceptFamilyId?: string): Promise<void>;
+  listActiveForUser(userId: string): Promise<RefreshToken[]>;
+  revokeFamilyForUser(userId: string, familyId: string): Promise<void>;
 }
 
 export type AuthTokenPurpose = 'invite' | 'reset';

@@ -58,6 +58,8 @@ export const TYPES = {
   GetUserEffectivePermissionsUseCase: Symbol.for('GetUserEffectivePermissionsUseCase'),
   IssuePasswordResetUseCase: Symbol.for('IssuePasswordResetUseCase'),
   RevokeUserSessionsUseCase: Symbol.for('RevokeUserSessionsUseCase'),
+  ListUserSessionsUseCase: Symbol.for('ListUserSessionsUseCase'),
+  RevokeUserSessionUseCase: Symbol.for('RevokeUserSessionUseCase'),
 
   // Use cases - roles / permissions / audit
   ListRolesUseCase: Symbol.for('ListRolesUseCase'),
