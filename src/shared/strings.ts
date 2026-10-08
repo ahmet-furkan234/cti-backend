@@ -27,6 +27,7 @@ export const Entity = {
   schedule: 'Report schedule',
   report: 'Report',
   softwareName: 'Software name',
+  company: 'Company',
 } as const;
 
 export const Errors = {
@@ -34,6 +35,8 @@ export const Errors = {
   routeNotFound: def('NOT_FOUND', 'Route not found'),
   unauthorized: def('UNAUTHORIZED', 'Missing or invalid token'),
   accountUnavailable: def('UNAUTHORIZED', 'Account unavailable'),
+  platformOnly: def('FORBIDDEN', 'Only the platform company can do this'),
+  invalidCompany: def('INVALID_COMPANY', 'Unknown company'),
   forbiddenRequired: (keys: string[]) => def('FORBIDDEN', `Required: ${keys.join(' | ')}`),
   tooManyRequests: def('TOO_MANY_REQUESTS', 'Too many requests, try again later'),
   validation: def('VALIDATION_ERROR', 'Request validation failed'),
@@ -42,7 +45,7 @@ export const Errors = {
   invalidCursor: def('INVALID_CURSOR', 'Invalid cursor'),
   invalidEmail: def('INVALID_EMAIL', 'Enter a valid email address'),
   weakPassword: (min: number, max: number) =>
-    def('WEAK_PASSWORD', `Password must be between ${min} and ${max} characters`),
+    def('WEAK_PASSWORD', `Password must be ${min}-${max} characters and include uppercase, lowercase, number and special character, without spaces`),
   invalidCveId: def('INVALID_CVE_ID', 'Invalid CVE id (expected CVE-YYYY-NNNN)'),
   invalidPermissionKey: (key: string) => def('INVALID_PERMISSION_KEY', `Invalid permission key: ${key} (expected module:action)`),
   invalidRoleName: def('INVALID_ROLE_NAME', 'Role names are 2-50 characters: letters, digits, space, _ and -'),
@@ -73,7 +76,13 @@ export const Errors = {
   unknownPermissions: (keys: string[]) => def('INVALID_VALUE', `Unknown permissions: ${keys.join(', ')}`),
   duplicateOverrides: def('INVALID_VALUE', 'Duplicate permission keys in overrides'),
 
+  // ---- companies
+  cannotSuspendPlatform: def('INVALID_STATE', 'The platform company cannot be suspended'),
+  platformPermissionsOnly: (keys: string[]) => def('FORBIDDEN', `Only the platform company can hold: ${keys.join(', ')}`),
+  platformRoleOnly: (name: string) => def('FORBIDDEN', `The ${name} role is reserved for the platform company`),
+
   // ---- roles
+  systemRoleEditPlatformOnly: def('SYSTEM_ROLE_IMMUTABLE', 'System roles are managed by the platform company'),
   systemRoleNameImmutable: def('SYSTEM_ROLE_IMMUTABLE', 'System role names cannot be changed'),
   superAdminPermissionsImmutable: def('SYSTEM_ROLE_IMMUTABLE', 'super_admin always holds every permission'),
   systemRoleUndeletable: def('SYSTEM_ROLE_IMMUTABLE', 'System roles cannot be deleted'),
@@ -123,6 +132,7 @@ export const AuditAction = {
   reportScheduleChanged: 'report.schedule_changed',
   reportGenerated: 'report.generated',
   userInvited: 'user.invited',
+  userCreated: 'user.created',
   userUpdated: 'user.updated',
   userDeleted: 'user.deleted',
   userPermissionsChanged: 'user.permissions_changed',
@@ -132,6 +142,8 @@ export const AuditAction = {
   roleUpdated: 'role.updated',
   roleDeleted: 'role.deleted',
   syncRequested: 'sync.requested',
+  companyCreated: 'company.created',
+  companyUpdated: 'company.updated',
 } as const;
 
 /** Paths of the web app that links sent to users point to. */

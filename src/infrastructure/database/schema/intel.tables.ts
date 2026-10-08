@@ -1,8 +1,10 @@
 import { sql } from 'drizzle-orm';
+import { companies } from './company.table.js';
 import { boolean, index, integer, pgTable, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 export const watchlists = pgTable('watchlists', {
   id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   vendors: text('vendors').array().notNull().default(sql`'{}'::text[]`),
   products: text('products').array().notNull().default(sql`'{}'::text[]`),
@@ -22,6 +24,7 @@ export const iocs = pgTable(
   'iocs',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
     type: text('type', { enum: ['ipv4', 'ipv6', 'cidr', 'domain', 'url', 'email', 'sha256', 'sha1', 'md5'] }).notNull(),
     value: text('value').notNull(),
     source: text('source').notNull().default('Manual'),
@@ -29,5 +32,5 @@ export const iocs = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('iocs_uq').on(t.type, t.value), index('iocs_type_idx').on(t.type)],
+  (t) => [uniqueIndex('iocs_uq').on(t.companyId, t.type, t.value), index('iocs_type_idx').on(t.type)],
 );

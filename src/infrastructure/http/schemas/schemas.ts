@@ -20,7 +20,19 @@ export const listUsersQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 });
+export const createCompanyBody = z.object({ name: z.string().trim().min(2).max(100), adminEmail: email.optional() });
+export const updateCompanyBody = z.object({
+  name: z.string().trim().min(2).max(100).optional(),
+  status: z.enum(['active', 'suspended']).optional(),
+});
 export const inviteBody = z.object({ email, roleIds: z.array(uuid).min(1).max(20) });
+export const createUserBody = z.object({
+  name: z.string().trim().min(1).max(100),
+  email,
+  password,
+  roleIds: z.array(uuid).min(1).max(20),
+  overrides: z.array(z.object({ key: z.string().min(1).max(100), effect: z.enum(['grant', 'deny']) })).max(200).default([]),
+});
 export const updateUserBody = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   status: z.enum(['active', 'disabled']).optional(),

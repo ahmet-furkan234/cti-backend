@@ -1,7 +1,8 @@
-import { eq, sql, type SQL } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
 import { inject, injectable } from 'inversify';
 import { TYPES } from '../../../shared/tokens.js';
 import type { IIntelRepository, IocList, ListIocsQuery, NewIoc, NewWatchlist, Watchlist, WatchlistHit } from '../../../domain/intel/intel.repository.interface.js';
+import { tenant } from '../../../shared/tenant.js';
 import type { Database } from '../client.js';
 import { iocs, watchlists } from '../schema/index.js';
 
@@ -10,7 +11,7 @@ const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&');
 
 const IPV4 = String.raw`'^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$'`;
 /** Inventory assets an indicator points at (address, host name or a range containing the address). */
-const IOC_MATCHES = sql`(select count(*)::int from assets a where case i.type
+const IOC_MATCHES = sql`(select count(*)::int from assets a where a.company_id = i.company_id and case i.type
   when 'ipv4' then a.addr = i.value
   when 'ipv6' then lower(a.addr) = lower(i.value)
   when 'domain' then lower(a.name) = lower(i.value) or lower(coalesce(a.addr, '')) like '%' || lower(i.value) || '%'
@@ -18,10 +19,10 @@ const IOC_MATCHES = sql`(select count(*)::int from assets a where case i.type
   else false end)`;
 
 /** Assets covered by a watchlist w: by component (vendor / product) or, when none is set, by tag. */
-const COVERS = sql`((cardinality(w.vendors) = 0 and cardinality(w.products) = 0 and w.tag <> '')
+const COVERS = sql`(a.company_id = w.company_id and (cardinality(w.vendors) = 0 and cardinality(w.products) = 0 and w.tag <> '')
     or exists (select 1 from asset_vulns v where v.asset_id = a.id and (split_part(v.component, ':', 1) = any(w.vendors) or split_part(v.component, ':', 2) = any(w.products)))
     or exists (select 1 from asset_software s where s.asset_id = a.id and (lower(s.vendor) = any(w.vendors) or lower(s.product) = any(w.products))))
-  and (w.tag = '' or w.tag = any(a.tags))`;
+  and (w.tag = '' or w.tag = any(a.tags)))`;
 
 const toWatchlist = (r: Record<string, unknown>): Watchlist => ({
   id: r['id'] as string, name: r['name'] as string, vendors: r['vendors'] as string[], products: r['products'] as string[],
@@ -41,7 +42,7 @@ export class IntelRepository implements IIntelRepository {
         and c.cvss_score >= w.min_cvss and (not w.kev_only or c.is_kev) and c.epss * 100 >= w.min_epss
         and (cardinality(w.vendors) + cardinality(w.products) = 0
           or split_part(av.component, ':', 1) = any(w.vendors) or split_part(av.component, ':', 2) = any(w.products))) as hits
-      from watchlists w ${where ? sql`where ${where}` : sql``} order by w.created_at desc`);
+      from watchlists w where w.company_id = ${tenant.id()}${where ? sql` and ${where}` : sql``} order by w.created_at desc`);
     return rowsOf<Record<string, unknown>>(res).map(toWatchlist);
   }
 
@@ -49,26 +50,26 @@ export class IntelRepository implements IIntelRepository {
     return this.watchlistRows();
   }
   async createWatchlist(input: NewWatchlist): Promise<Watchlist> {
-    const [r] = await this.db.insert(watchlists).values(input).returning({ id: watchlists.id });
+    const [r] = await this.db.insert(watchlists).values({ ...input, companyId: tenant.id() }).returning({ id: watchlists.id });
     return (await this.watchlistRows(sql`w.id = ${r!.id}`))[0]!;
   }
   async updateWatchlist(id: string, patch: Partial<NewWatchlist>): Promise<Watchlist | null> {
-    const res = await this.db.update(watchlists).set(patch).where(eq(watchlists.id, id)).returning({ id: watchlists.id });
+    const res = await this.db.update(watchlists).set(patch).where(and(eq(watchlists.id, id), eq(watchlists.companyId, tenant.id()))).returning({ id: watchlists.id });
     return res.length ? (await this.watchlistRows(sql`w.id = ${id}`))[0] ?? null : null;
   }
   async deleteWatchlist(id: string): Promise<boolean> {
-    return (await this.db.delete(watchlists).where(eq(watchlists.id, id)).returning({ id: watchlists.id })).length > 0;
+    return (await this.db.delete(watchlists).where(and(eq(watchlists.id, id), eq(watchlists.companyId, tenant.id()))).returning({ id: watchlists.id })).length > 0;
   }
 
   async notifying() {
-    const rows = await this.db.select().from(watchlists).where(sql`${watchlists.enabled} and ${watchlists.channelId} is not null`);
+    const rows = await this.db.select().from(watchlists).where(and(eq(watchlists.companyId, tenant.id()), sql`${watchlists.enabled} and ${watchlists.channelId} is not null`));
     return rows.map((w) => ({ id: w.id, name: w.name, channelId: w.channelId!, evaluatedAt: w.evaluatedAt }));
   }
 
   async hitsSince(id: string, since: Date): Promise<WatchlistHit[]> {
     const res = await this.db.execute(sql`select av.cve_id, a.name, c.cvss_score
       from watchlists w, asset_vulns av join assets a on a.id = av.asset_id join cve c on c.id = av.cve_id
-      where w.id = ${id} and ${COVERS} and av.status in ('open', 'in_progress') and av.first_seen_at > ${since}
+      where w.id = ${id} and w.company_id = ${tenant.id()} and ${COVERS} and av.status in ('open', 'in_progress') and av.first_seen_at > ${since}
         and c.cvss_score >= w.min_cvss and (not w.kev_only or c.is_kev) and c.epss * 100 >= w.min_epss
         and (cardinality(w.vendors) + cardinality(w.products) = 0
           or split_part(av.component, ':', 1) = any(w.vendors) or split_part(av.component, ':', 2) = any(w.products))
@@ -77,11 +78,11 @@ export class IntelRepository implements IIntelRepository {
   }
 
   async markEvaluated(id: string, at: Date): Promise<void> {
-    await this.db.update(watchlists).set({ evaluatedAt: at }).where(eq(watchlists.id, id));
+    await this.db.update(watchlists).set({ evaluatedAt: at }).where(and(eq(watchlists.id, id), eq(watchlists.companyId, tenant.id())));
   }
 
   async iocs(q: ListIocsQuery): Promise<IocList> {
-    const c: SQL[] = [sql`(i.expires_at is null or i.expires_at > now())`];
+    const c: SQL[] = [sql`i.company_id = ${tenant.id()}`, sql`(i.expires_at is null or i.expires_at > now())`];
     if (q.types?.length) c.push(sql`i.type in (${sql.join(q.types.map((t) => sql`${t}`), sql`, `)})`);
     const term = q.q?.trim();
     if (term) {
@@ -95,7 +96,7 @@ export class IntelRepository implements IIntelRepository {
         order by matches desc, created_at desc limit ${q.limit} offset ${q.offset}`),
       this.db.execute(sql`select count(*) filter (where ${where})::int as total,
         count(*) filter (where i.expires_at is null or i.expires_at > now())::int as active,
-        count(*) filter (where i.expires_at > now() and i.expires_at < now() + interval '7 days')::int as expiring from iocs i`),
+        count(*) filter (where i.expires_at > now() and i.expires_at < now() + interval '7 days')::int as expiring from iocs i where i.company_id = ${tenant.id()}`),
     ]);
     const t = rowsOf<Record<string, number>>(totals)[0] ?? {};
     return {
@@ -109,10 +110,10 @@ export class IntelRepository implements IIntelRepository {
 
   async addIocs(items: NewIoc[]): Promise<number> {
     if (items.length === 0) return 0;
-    const res = await this.db.insert(iocs).values(items).onConflictDoNothing().returning({ id: iocs.id });
+    const res = await this.db.insert(iocs).values(items.map((i) => ({ ...i, companyId: tenant.id() }))).onConflictDoNothing().returning({ id: iocs.id });
     return res.length;
   }
   async deleteIoc(id: string): Promise<boolean> {
-    return (await this.db.delete(iocs).where(eq(iocs.id, id)).returning({ id: iocs.id })).length > 0;
+    return (await this.db.delete(iocs).where(and(eq(iocs.id, id), eq(iocs.companyId, tenant.id()))).returning({ id: iocs.id })).length > 0;
   }
 }

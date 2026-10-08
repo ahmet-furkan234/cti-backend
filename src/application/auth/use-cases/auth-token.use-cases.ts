@@ -4,6 +4,8 @@ import type { IAuthTokenRepository, AuthToken, AuthTokenPurpose } from '../../..
 import type { IRefreshTokenRepository } from '../../../domain/auth/auth.repositories.js';
 import type { IUserRepository } from '../../../domain/user/user.repository.interface.js';
 import type { IRoleRepository } from '../../../domain/rbac/role.repository.interface.js';
+import type { ICompanyRepository } from '../../../domain/company/company.repository.interface.js';
+import { tenant } from '../../../shared/tenant.js';
 import type { IPasswordHasher, ITokenService } from '../../ports/ports.js';
 import { Email } from '../../../domain/common/value-objects/email.value-object.js';
 import { PlainPassword } from '../../../domain/common/value-objects/plain-password.value-object.js';
@@ -50,6 +52,7 @@ export class RegisterWithInviteUseCase {
     @inject(TYPES.ITokenService) private readonly tokens: ITokenService,
     @inject(TYPES.IUserRepository) private readonly users: IUserRepository,
     @inject(TYPES.IRoleRepository) private readonly roles: IRoleRepository,
+    @inject(TYPES.ICompanyRepository) private readonly companies: ICompanyRepository,
     @inject(TYPES.IPasswordHasher) private readonly hasher: IPasswordHasher,
     @inject(TYPES.SessionService) private readonly sessions: SessionService,
     @inject(TYPES.AuditService) private readonly audit: AuditService,
@@ -63,22 +66,25 @@ export class RegisterWithInviteUseCase {
     const email = Email.from(invite.email);
     const password = PlainPassword.from(input.password);
     if (await this.users.findByEmail(email)) throw new AlreadyExistsException(Entity.user, 'email');
+    const company = invite.companyId ? await this.companies.findById(invite.companyId) : null;
+    if (!company || company.status !== 'active') throw new AuthTokenInvalidException();
 
     const user = new User({
+      companyId: company.id,
       email,
       name: input.name,
       passwordHash: await this.hasher.hash(password.reveal()),
     });
     await this.users.create(user);
     // Roles may have been deleted since the invite was issued.
-    const validRoles = await this.roles.findByIds(invite.roleIds);
+    const validRoles = await tenant.run({ companyId: company.id, platform: company.isPlatform }, () => this.roles.findByIds(invite.roleIds));
     await this.users.replaceRoles(user.id, validRoles.map((r) => r.id));
     await this.repo.markUsed(invite.id);
 
     user.registerSuccessfulLogin();
     await this.users.save(user);
     const session = await this.sessions.issue(user.id, input);
-    await this.audit.record({ id: user.id, email: user.email.value, ip: input.ip }, AuditAction.authRegistered, { type: 'user', id: user.id }, {
+    await this.audit.record({ id: user.id, email: user.email.value, ip: input.ip, companyId: company.id }, AuditAction.authRegistered, { type: 'user', id: user.id }, {
       roles: validRoles.map((r) => r.name),
     });
     return { userId: user.id, session };
@@ -105,6 +111,6 @@ export class ResetPasswordUseCase {
     await this.users.save(user);
     await this.repo.markUsed(t.id);
     await this.refreshRepo.revokeAllForUser(user.id);
-    await this.audit.record({ id: user.id, email: user.email.value, ip: input.ip }, AuditAction.authPasswordReset, { type: 'user', id: user.id });
+    await this.audit.record({ id: user.id, email: user.email.value, ip: input.ip, companyId: user.companyId }, AuditAction.authPasswordReset, { type: 'user', id: user.id });
   }
 }

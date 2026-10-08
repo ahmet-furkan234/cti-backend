@@ -65,7 +65,7 @@ export class AuthRouter {
     }));
 
     r.get('/me', this.auth.authenticate, wrap(async (req, res) => {
-      res.json(await this.c.me(req.auth!.userId));
+      res.json(await this.c.me(req.auth!.userId, req.auth!.companyId));
     }));
 
     r.post('/change-password', strict, this.auth.authenticate, check({ body: S.changePasswordBody }), wrap(async (req, res) => {

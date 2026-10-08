@@ -43,6 +43,13 @@
       "when": 1791274501730,
       "tag": "0005_plain_quasimodo",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791441962969,
+      "tag": "0006_multi_tenant",
+      "breakpoints": true
     }
   ]
 }

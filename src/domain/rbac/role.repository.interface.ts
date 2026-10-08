@@ -3,6 +3,8 @@ export interface Role {
   name: string;
   description: string;
   isSystem: boolean;
+  /** null for system roles (shared); otherwise the company that owns the custom role */
+  companyId: string | null;
   permissionKeys: string[];
   memberCount: number;
   createdAt: Date;

@@ -1,5 +1,6 @@
 export interface AuditEntry {
   id: string;
+  companyId: string | null;
   actorId: string | null;
   actorEmail: string | null;
   action: string;

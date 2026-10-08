@@ -5,23 +5,27 @@ import type { IRoleRepository } from '../../../domain/rbac/role.repository.inter
 import type { IPermissionRepository } from '../../../domain/rbac/role.repository.interface.js';
 import type { IAuthTokenRepository, IRefreshTokenRepository } from '../../../domain/auth/auth.repositories.js';
 import type { ITokenService } from '../../ports/ports.js';
+import type { IPasswordHasher } from '../../ports/ports.js';
 import type { UserStatus } from '../../../domain/user/user.entity.js';
 import type { OverrideEffect } from '../../../domain/rbac/effective-permissions.js';
 import { Email } from '../../../domain/common/value-objects/email.value-object.js';
+import { PlainPassword } from '../../../domain/common/value-objects/plain-password.value-object.js';
+import { User } from '../../../domain/user/user.entity.js';
 import { SUPER_ADMIN_ROLE } from '../../../domain/rbac/permission-catalog.js';
 import {
   AlreadyExistsException,
   ForbiddenException,
   InvalidStateException,
   InvalidValueException,
-  NotFoundException,
 } from '../../../domain/common/exceptions.js';
 import { EffectivePermissionService } from '../../rbac/services/effective-permission.service.js';
-import { assertCanGrant, assertCanManageUser, assertKnownPermissions } from '../../shared/access-guard.js';
+import { assertCanGrant, assertCanManageUser, assertKnownPermissions, assertPlatformKeysAllowed, assertRolesAssignable, loadCompanyUser } from '../../shared/access-guard.js';
+import { tenant } from '../../../shared/tenant.js';
 import { AuditService } from '../../audit/audit.service.js';
 import { auditActor, type Actor } from '../../shared/actor.js';
 import type { EnvConfig } from '../../../infrastructure/common/env.config.js';
 import { AuditAction, Entity, Errors, WebPath } from '../../../shared/strings.js';
+import { PERMISSIONS } from '../../../domain/rbac/permission-catalog.js';
 
 const INVITE_TTL_MS = 7 * 86_400_000;
 const RESET_TTL_MS = 24 * 3_600_000;
@@ -61,8 +65,7 @@ export class GetUserUseCase {
   constructor(@inject(TYPES.IUserRepository) private readonly users: IUserRepository) {}
 
   async execute(id: string) {
-    const user = await this.users.findById(id);
-    if (!user) throw new NotFoundException(Entity.user);
+    const user = await loadCompanyUser(this.users, id);
     const [roles, overrides] = await Promise.all([this.users.getRoles(id), this.users.getOverrides(id)]);
     return { ...userDto(user, roles), overrides };
   }
@@ -85,6 +88,7 @@ export class InviteUserUseCase {
 
     const roles = await this.roles.findByIds(input.roleIds);
     if (roles.length !== new Set(input.roleIds).size) throw new InvalidValueException(Errors.rolesMissing);
+    assertRolesAssignable(roles);
     assertCanGrant(actor.permissions, roles.flatMap((r) => r.permissionKeys));
 
     await this.authTokens.invalidateOpen('invite', { email: email.value });
@@ -95,6 +99,7 @@ export class InviteUserUseCase {
       tokenHash: hash,
       email: email.value,
       userId: null,
+      companyId: tenant.id(),
       roleIds: roles.map((r) => r.id),
       expiresAt,
       createdBy: actor.id,
@@ -102,6 +107,60 @@ export class InviteUserUseCase {
     await this.audit.record(auditActor(actor), AuditAction.userInvited, { type: 'user', id: email.value }, { roles: roles.map((r) => r.name) });
     // No mailer yet (alert channels arrive in a later phase): the admin shares the link.
     return { email: email.value, expiresAt, inviteUrl: `${this.config.WEB_BASE_URL}${WebPath.register(token)}` };
+  }
+}
+
+@injectable()
+export class CreateUserUseCase {
+  constructor(
+    @inject(TYPES.IUserRepository) private readonly users: IUserRepository,
+    @inject(TYPES.IRoleRepository) private readonly roles: IRoleRepository,
+    @inject(TYPES.IPermissionRepository) private readonly permissions: IPermissionRepository,
+    @inject(TYPES.IPasswordHasher) private readonly hasher: IPasswordHasher,
+    @inject(TYPES.AuditService) private readonly audit: AuditService,
+  ) {}
+
+  async execute(actor: Actor, input: {
+    name: string;
+    email: string;
+    password: string;
+    roleIds: string[];
+    overrides: { key: string; effect: OverrideEffect }[];
+  }) {
+    const email = Email.from(input.email);
+    const password = PlainPassword.from(input.password);
+    if (await this.users.findByEmail(email)) throw new AlreadyExistsException(Entity.user, 'email');
+
+    const roles = await this.roles.findByIds(input.roleIds);
+    if (roles.length !== new Set(input.roleIds).size) throw new InvalidValueException(Errors.rolesMissing);
+    assertRolesAssignable(roles);
+    assertCanGrant(actor.permissions, roles.flatMap((r) => r.permissionKeys));
+
+    if (new Set(input.overrides.map((o) => o.key)).size !== input.overrides.length) {
+      throw new InvalidValueException(Errors.duplicateOverrides);
+    }
+    if (input.overrides.length > 0 && !actor.permissions.includes(PERMISSIONS.PERMISSION_ASSIGN)) {
+      throw new ForbiddenException(Errors.insufficientPrivilege);
+    }
+    await assertKnownPermissions(this.permissions, input.overrides.map((o) => o.key));
+    assertPlatformKeysAllowed(input.overrides.filter((o) => o.effect === 'grant').map((o) => o.key));
+    assertCanGrant(actor.permissions, input.overrides.filter((o) => o.effect === 'grant').map((o) => o.key));
+
+    const user = new User({
+      companyId: tenant.id(),
+      email,
+      name: input.name,
+      passwordHash: await this.hasher.hash(password.reveal()),
+    });
+    await this.users.create(user);
+    await this.users.replaceRoles(user.id, roles.map((r) => r.id));
+    if (input.overrides.length > 0) await this.users.replaceOverrides(user.id, input.overrides);
+    await this.audit.record(auditActor(actor), AuditAction.userCreated, { type: 'user', id: user.id }, {
+      email: email.value,
+      roles: roles.map((r) => r.name),
+      overrides: input.overrides,
+    });
+    return { ...userDto(user, roles), overrides: input.overrides };
   }
 }
 
@@ -116,8 +175,7 @@ export class UpdateUserUseCase {
   ) {}
 
   async execute(actor: Actor, id: string, input: { name?: string; status?: UserStatus; roleIds?: string[] }) {
-    const user = await this.users.findById(id);
-    if (!user) throw new NotFoundException(Entity.user);
+    const user = await loadCompanyUser(this.users, id);
     const isSelf = actor.id === id;
     if (!isSelf) await assertCanManageUser(this.perms, actor.permissions, id);
     const changes: Record<string, unknown> = {};
@@ -132,6 +190,7 @@ export class UpdateUserUseCase {
     if (input.roleIds) {
       const roles = await this.roles.findByIds(input.roleIds);
       if (roles.length !== new Set(input.roleIds).size) throw new InvalidValueException(Errors.rolesMissing);
+      assertRolesAssignable(roles);
       assertCanGrant(actor.permissions, roles.flatMap((r) => r.permissionKeys));
       if (isSuper && superRole && !roles.some((r) => r.id === superRole.id) && user.isActive) {
         await this.assertNotLastSuperAdmin(superRole.id);
@@ -176,8 +235,7 @@ export class DeleteUserUseCase {
 
   async execute(actor: Actor, id: string): Promise<void> {
     if (actor.id === id) throw new ForbiddenException(Errors.selfDelete);
-    const user = await this.users.findById(id);
-    if (!user) throw new NotFoundException(Entity.user);
+    const user = await loadCompanyUser(this.users, id);
     await assertCanManageUser(this.perms, actor.permissions, id);
 
     const superRole = await this.roles.findByName(SUPER_ADMIN_ROLE);
@@ -204,13 +262,14 @@ export class SetUserPermissionOverridesUseCase {
 
   async execute(actor: Actor, id: string, overrides: { key: string; effect: OverrideEffect }[]) {
     if (actor.id === id) throw new ForbiddenException(Errors.selfPermissionChange);
-    if (!(await this.users.findById(id))) throw new NotFoundException(Entity.user);
+    await loadCompanyUser(this.users, id);
     await assertCanManageUser(this.perms, actor.permissions, id);
 
     await assertKnownPermissions(this.permissions, overrides.map((o) => o.key));
     if (new Set(overrides.map((o) => o.key)).size !== overrides.length) {
       throw new InvalidValueException(Errors.duplicateOverrides);
     }
+    assertPlatformKeysAllowed(overrides.filter((o) => o.effect === 'grant').map((o) => o.key));
     assertCanGrant(actor.permissions, overrides.filter((o) => o.effect === 'grant').map((o) => o.key));
 
     await this.users.replaceOverrides(id, overrides);
@@ -228,7 +287,7 @@ export class GetUserEffectivePermissionsUseCase {
   ) {}
 
   async execute(id: string) {
-    if (!(await this.users.findById(id))) throw new NotFoundException(Entity.user);
+    await loadCompanyUser(this.users, id);
     return { permissions: await this.perms.getDetailed(id) };
   }
 }
@@ -245,8 +304,7 @@ export class IssuePasswordResetUseCase {
   ) {}
 
   async execute(actor: Actor, id: string) {
-    const user = await this.users.findById(id);
-    if (!user) throw new NotFoundException(Entity.user);
+    await loadCompanyUser(this.users, id);
     await assertCanManageUser(this.perms, actor.permissions, id);
     await this.authTokens.invalidateOpen('reset', { userId: id });
     const { token, hash } = this.tokens.generateOpaqueToken();
@@ -256,6 +314,7 @@ export class IssuePasswordResetUseCase {
       tokenHash: hash,
       email: null,
       userId: id,
+      companyId: null,
       roleIds: [],
       expiresAt,
       createdBy: actor.id,
@@ -275,7 +334,7 @@ export class RevokeUserSessionsUseCase {
   ) {}
 
   async execute(actor: Actor, id: string): Promise<void> {
-    if (!(await this.users.findById(id))) throw new NotFoundException(Entity.user);
+    await loadCompanyUser(this.users, id);
     if (actor.id !== id) await assertCanManageUser(this.perms, actor.permissions, id);
     await this.refreshRepo.revokeAllForUser(id);
     await this.audit.record(auditActor(actor), AuditAction.userSessionsRevoked, { type: 'user', id });

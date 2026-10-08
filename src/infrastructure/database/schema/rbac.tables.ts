@@ -1,14 +1,22 @@
-import { boolean, index, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { boolean, index, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { companies } from './company.table.js';
 import { users } from './users.table.js';
 
-export const roles = pgTable('roles', {
+export const roles = pgTable(
+  'roles',
+  {
   id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull().unique(),
+  /** null = system role shared by every company; otherwise a custom role of that company */
+  companyId: uuid('company_id').references(() => companies.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
   description: text('description').notNull().default(''),
   isSystem: boolean('is_system').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+  },
+  (t) => [uniqueIndex('roles_scope_name_uq').on(sql`coalesce(${t.companyId}::text, '')`, t.name)],
+);
 
 export const permissions = pgTable('permissions', {
   key: text('key').primaryKey(),

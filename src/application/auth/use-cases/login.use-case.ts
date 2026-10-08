@@ -1,6 +1,7 @@
 import { inject, injectable } from 'inversify';
 import { TYPES } from '../../../shared/tokens.js';
 import type { IUserRepository } from '../../../domain/user/user.repository.interface.js';
+import type { ICompanyRepository } from '../../../domain/company/company.repository.interface.js';
 import type { IPasswordHasher } from '../../ports/ports.js';
 import { Email } from '../../../domain/common/value-objects/email.value-object.js';
 import { AccountLockedException } from '../../../domain/common/exceptions.js';
@@ -22,6 +23,7 @@ export class LoginUseCase {
 
   constructor(
     @inject(TYPES.IUserRepository) private readonly users: IUserRepository,
+    @inject(TYPES.ICompanyRepository) private readonly companies: ICompanyRepository,
     @inject(TYPES.IPasswordHasher) private readonly hasher: IPasswordHasher,
     @inject(TYPES.SessionService) private readonly sessions: SessionService,
     @inject(TYPES.AuditService) private readonly audit: AuditService,
@@ -39,7 +41,7 @@ export class LoginUseCase {
       throw new InvalidCredentialsException();
     }
     if (user.isLocked()) {
-      await this.audit.record({ ...actor, id: user.id }, AuditAction.authLoginBlocked, undefined, { reason: 'locked' });
+      await this.audit.record({ ...actor, id: user.id, companyId: user.companyId }, AuditAction.authLoginBlocked, undefined, { reason: 'locked' });
       throw new AccountLockedException(user.lockedUntil!);
     }
 
@@ -47,15 +49,15 @@ export class LoginUseCase {
     if (!valid) {
       user.registerFailedLogin();
       await this.users.save(user);
-      await this.audit.record({ ...actor, id: user.id }, AuditAction.authLoginFailed, undefined, { reason: 'bad_password' });
+      await this.audit.record({ ...actor, id: user.id, companyId: user.companyId }, AuditAction.authLoginFailed, undefined, { reason: 'bad_password' });
       throw new InvalidCredentialsException();
     }
-    if (!user.isActive) throw new UserInactiveException();
+    if (!user.isActive || (await this.companies.findById(user.companyId))?.status !== 'active') throw new UserInactiveException();
 
     user.registerSuccessfulLogin();
     await this.users.save(user);
     const session = await this.sessions.issue(user.id, input);
-    await this.audit.record({ ...actor, id: user.id }, AuditAction.authLogin, { type: 'user', id: user.id });
+    await this.audit.record({ ...actor, id: user.id, companyId: user.companyId }, AuditAction.authLogin, { type: 'user', id: user.id });
     return { userId: user.id, session };
   }
 }

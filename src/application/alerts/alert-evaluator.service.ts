@@ -2,7 +2,9 @@ import { inject, injectable } from 'inversify';
 import { TYPES } from '../../shared/tokens.js';
 import type { AlertEvent, Channel, IAlertRepository, Rule } from '../../domain/alerts/alert.repository.interface.js';
 import type { IIntelRepository } from '../../domain/intel/intel.repository.interface.js';
+import type { ICompanyRepository } from '../../domain/company/company.repository.interface.js';
 import type { IChannelDispatcher, ILogger } from '../ports/ports.js';
+import { tenant } from '../../shared/tenant.js';
 
 const HOUR = 3_600_000;
 const SLA_SOON_HOURS = 24;
@@ -14,6 +16,7 @@ export class AlertEvaluatorService {
   constructor(
     @inject(TYPES.IAlertRepository) private readonly repo: IAlertRepository,
     @inject(TYPES.IIntelRepository) private readonly intel: IIntelRepository,
+    @inject(TYPES.ICompanyRepository) private readonly companies: ICompanyRepository,
     @inject(TYPES.IChannelDispatcher) private readonly dispatcher: IChannelDispatcher,
     @inject(TYPES.ILogger) private readonly logger: ILogger,
   ) {}
@@ -101,15 +104,20 @@ export class AlertEvaluatorService {
     await this.repo.markEvaluated(rule.id, now, fired);
   }
 
+  /** Each company's rules and watchlists are evaluated on their own, against that company's data and channels. */
   async tick(): Promise<void> {
-    for (const rule of await this.repo.rules()) {
-      try {
-        await this.evaluate(rule);
-      } catch (err) {
-        this.logger.error({ err, rule: rule.id }, 'alert rule evaluation failed');
-      }
+    for (const company of await this.companies.active()) {
+      await tenant.run({ companyId: company.id, platform: company.isPlatform }, async () => {
+        for (const rule of await this.repo.rules()) {
+          try {
+            await this.evaluate(rule);
+          } catch (err) {
+            this.logger.error({ err, rule: rule.id, company: company.id }, 'alert rule evaluation failed');
+          }
+        }
+        await this.tickWatchlists();
+      });
     }
-    await this.tickWatchlists();
   }
 
   /** Watchlists announce new findings on their own channel. */

@@ -27,6 +27,8 @@ export const PERMISSIONS = {
   INTEL_MANAGE:        'intel:manage',
   REPORT_READ:         'report:read',
   REPORT_MANAGE:       'report:manage',
+  COMPANY_READ:        'company:read',
+  COMPANY_MANAGE:      'company:manage',
 } as const;
 
 export type PermissionKey = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -62,9 +64,17 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
   { key: PERMISSIONS.INTEL_MANAGE,        module: 'intel',     description: 'Manage watchlists and indicators' },
   { key: PERMISSIONS.REPORT_READ,         module: 'report',    description: 'View and download reports' },
   { key: PERMISSIONS.REPORT_MANAGE,       module: 'report',    description: 'Schedule and generate reports' },
+  { key: PERMISSIONS.COMPANY_READ,         module: 'company',   description: 'List the companies on the platform' },
+  { key: PERMISSIONS.COMPANY_MANAGE,       module: 'company',   description: 'Add, rename and suspend companies, and work inside them' },
 ];
 
 const ALL = PERMISSION_CATALOG.map((p) => p.key);
+
+/** Platform-level permissions: only the main company's users can ever hold them. */
+export const PLATFORM_ONLY_PERMISSION_MODULES = ['company'];
+export const isPlatformOnlyPermission = (key: string) => PLATFORM_ONLY_PERMISSION_MODULES.includes(key.split(':')[0] ?? '');
+/** What a company's own administrator holds: everything except platform management and running the global CVE sync. */
+const COMPANY_ADMIN: PermissionKey[] = ALL.filter((k) => !isPlatformOnlyPermission(k) && k !== PERMISSIONS.SYNC_RUN);
 
 /** Day-to-day security operations: inventory, vulnerabilities, alerts, intel and reports. */
 const OPERATIONS: PermissionKey[] = [
@@ -83,6 +93,11 @@ export interface SystemRoleDefinition {
 
 export const SYSTEM_ROLES: SystemRoleDefinition[] = [
   { name: 'super_admin', description: 'Full access', permissions: ALL, allPermissions: true },
+  {
+    name: 'company_admin',
+    description: 'Runs a company: its users, roles and security operations',
+    permissions: COMPANY_ADMIN,
+  },
   {
     name: 'admin',
     description: 'Manages users and operations',
@@ -109,3 +124,6 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
 ];
 
 export const SUPER_ADMIN_ROLE = 'super_admin';
+export const COMPANY_ADMIN_ROLE = 'company_admin';
+/** System roles only the platform company may assign. */
+export const PLATFORM_ONLY_ROLES = [SUPER_ADMIN_ROLE];

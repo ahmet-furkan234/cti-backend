@@ -1,4 +1,4 @@
-import { and, count, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, count, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { inject, injectable } from 'inversify';
 import { TYPES } from '../../../shared/tokens.js';
 import { User } from '../../../domain/user/user.entity.js';
@@ -7,6 +7,7 @@ import type {
   IUserRepository, ListUsersQuery, UserListItem, UserRoleRef,
 } from '../../../domain/user/user.repository.interface.js';
 import type { PermissionOverride, RoleGrant } from '../../../domain/rbac/effective-permissions.js';
+import { tenant } from '../../../shared/tenant.js';
 import type { Database } from '../client.js';
 import { rolePermissions, roles, userPermissions, userRoles, users } from '../schema/index.js';
 
@@ -14,7 +15,7 @@ type Row = typeof users.$inferSelect;
 
 const toEntity = (r: Row): User =>
   new User({
-    id: r.id, email: r.email, name: r.name, passwordHash: r.passwordHash, status: r.status,
+    id: r.id, companyId: r.companyId, email: r.email, name: r.name, passwordHash: r.passwordHash, status: r.status,
     failedLoginAttempts: r.failedLoginAttempts, lockedUntil: r.lockedUntil, lastLoginAt: r.lastLoginAt,
     createdAt: r.createdAt, updatedAt: r.updatedAt,
   });
@@ -40,7 +41,7 @@ export class UserRepository implements IUserRepository {
   }
 
   async create(user: User) {
-    await this.db.insert(users).values({ id: user.id, createdAt: user.createdAt, ...toRow(user) });
+    await this.db.insert(users).values({ id: user.id, companyId: user.companyId, createdAt: user.createdAt, ...toRow(user) });
   }
 
   async save(user: User) {
@@ -57,7 +58,7 @@ export class UserRepository implements IUserRepository {
   }
 
   async list(q: ListUsersQuery): Promise<{ items: UserListItem[]; total: number }> {
-    const conds = [];
+    const conds: (SQL | undefined)[] = [eq(users.companyId, tenant.id())];
     if (q.q) {
       const like = `%${q.q.replace(/[%_\\]/g, '\\$&')}%`;
       conds.push(or(ilike(users.email, like), ilike(users.name, like)));

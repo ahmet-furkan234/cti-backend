@@ -4,6 +4,7 @@ import { TYPES } from '../../shared/tokens.js';
 import type { EnvConfig } from '../common/env.config.js';
 import type { IPasswordHasher } from '../../application/ports/ports.js';
 import type { IRoleRepository } from '../../domain/rbac/role.repository.interface.js';
+import type { ICompanyRepository } from '../../domain/company/company.repository.interface.js';
 import type { IUserRepository } from '../../domain/user/user.repository.interface.js';
 import type { CatalogBootstrapService } from '../../application/rbac/services/catalog-bootstrap.service.js';
 import { User } from '../../domain/user/user.entity.js';
@@ -18,6 +19,7 @@ await runMigrations(config.DATABASE_URL);
 await container.get<CatalogBootstrapService>(TYPES.CatalogBootstrapService).run();
 
 const users = container.get<IUserRepository>(TYPES.IUserRepository);
+const platform = (await container.get<ICompanyRepository>(TYPES.ICompanyRepository).findPlatform())!;
 const roles = container.get<IRoleRepository>(TYPES.IRoleRepository);
 const superRole = (await roles.findByName(SUPER_ADMIN_ROLE))!;
 
@@ -29,6 +31,7 @@ if ((await roles.memberIds(superRole.id)).length > 0) {
 } else {
   const hasher = container.get<IPasswordHasher>(TYPES.IPasswordHasher);
   const admin = new User({
+    companyId: platform.id,
     email: config.SEED_ADMIN_EMAIL,
     name: 'Super Admin',
     passwordHash: await hasher.hash(config.SEED_ADMIN_PASSWORD),

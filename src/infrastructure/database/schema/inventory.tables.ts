@@ -1,10 +1,12 @@
 import { sql } from 'drizzle-orm';
+import { companies } from './company.table.js';
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 export const assets = pgTable(
   'assets',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
     type: text('type', { enum: ['fw', 'server', 'web', 'db', 'container', 'cloud', 'laptop'] }).notNull(),
     name: text('name').notNull(),
     /** IP address or URL, depending on the type */
@@ -25,7 +27,8 @@ export const assets = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('assets_name_uq').on(sql`lower(${t.name})`),
+    uniqueIndex('assets_name_uq').on(t.companyId, sql`lower(${t.name})`),
+    index('assets_company_idx').on(t.companyId),
     index('assets_type_idx').on(t.type),
     index('assets_env_idx').on(t.env),
     index('assets_seen_idx').on(t.lastSeenAt.desc()),
@@ -48,6 +51,7 @@ export const assetImports = pgTable(
   'asset_imports',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
     source: text('source').notNull(),
     kind: text('kind').notNull(),
     rows: integer('rows').notNull().default(0),

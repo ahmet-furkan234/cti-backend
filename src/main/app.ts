@@ -11,6 +11,7 @@ import type { ISyncJobQueue } from '../application/ports/ports.js';
 import { errorHandler } from '../infrastructure/http/middleware/error-handler.middleware.js';
 import type { AuditRouter } from '../infrastructure/http/routers/audit.router.js';
 import type { AuthRouter } from '../infrastructure/http/routers/auth.router.js';
+import type { CompanyRouter } from '../infrastructure/http/routers/company.router.js';
 import type { CveRouter } from '../infrastructure/http/routers/cve.router.js';
 import type { InventoryRouter } from '../infrastructure/http/routers/inventory.router.js';
 import type { VulnRouter } from '../infrastructure/http/routers/vuln.router.js';
@@ -57,6 +58,7 @@ export function createApp(container: Container): Express {
   v1.use('/auth', container.get<AuthRouter>(TYPES.AuthRouter).router);
   v1.use('/users', container.get<UserRouter>(TYPES.UserRouter).router);
   v1.use('/', container.get<RoleRouter>(TYPES.RoleRouter).router);
+  v1.use('/companies', container.get<CompanyRouter>(TYPES.CompanyRouter).router);
   v1.use('/audit', container.get<AuditRouter>(TYPES.AuditRouter).router);
   v1.use('/cves', container.get<CveRouter>(TYPES.CveRouter).router);
   v1.use('/assets', container.get<InventoryRouter>(TYPES.InventoryRouter).router);

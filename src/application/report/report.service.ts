@@ -3,13 +3,16 @@ import { TYPES } from '../../shared/tokens.js';
 import type { IAlertRepository } from '../../domain/alerts/alert.repository.interface.js';
 import type { IReportRepository, Run, Schedule, TemplateId } from '../../domain/report/report.repository.interface.js';
 import { latestSlot, toCsv } from '../../domain/report/schedule.js';
+import type { ICompanyRepository } from '../../domain/company/company.repository.interface.js';
 import type { IChannelDispatcher, ILogger } from '../ports/ports.js';
+import { tenant } from '../../shared/tenant.js';
 
 @injectable()
 export class ReportService {
   constructor(
     @inject(TYPES.IReportRepository) private readonly repo: IReportRepository,
     @inject(TYPES.IAlertRepository) private readonly alerts: IAlertRepository,
+    @inject(TYPES.ICompanyRepository) private readonly companies: ICompanyRepository,
     @inject(TYPES.IChannelDispatcher) private readonly dispatcher: IChannelDispatcher,
     @inject(TYPES.ILogger) private readonly logger: ILogger,
   ) {}
@@ -48,6 +51,12 @@ export class ReportService {
 
   /** Runs every enabled schedule whose latest slot has not produced a report yet. */
   async tick(now = new Date()): Promise<void> {
+    for (const company of await this.companies.active()) {
+      await tenant.run({ companyId: company.id, platform: company.isPlatform }, () => this.tickCompany(now));
+    }
+  }
+
+  private async tickCompany(now: Date): Promise<void> {
     const runs = await this.repo.runs(500);
     for (const s of await this.repo.schedules()) {
       if (!s.enabled) continue;

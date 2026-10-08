@@ -1,11 +1,18 @@
-import { count, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { inject, injectable } from 'inversify';
 import { TYPES } from '../../../shared/tokens.js';
 import type {
   IPermissionRepository, IRoleRepository, Permission, Role,
 } from '../../../domain/rbac/role.repository.interface.js';
+import { tenant } from '../../../shared/tenant.js';
 import type { Database } from '../client.js';
-import { permissions, rolePermissions, roles, userRoles } from '../schema/index.js';
+import { permissions, rolePermissions, roles, userRoles, users } from '../schema/index.js';
+
+/** What the current company can see and use: the shared system roles plus its own custom roles (system roles only, outside a company). */
+const visible = (): SQL => {
+  const scope = tenant.current();
+  return scope ? or(isNull(roles.companyId), eq(roles.companyId, scope.companyId))! : isNull(roles.companyId);
+};
 
 @injectable()
 export class RoleRepository implements IRoleRepository {
@@ -16,10 +23,12 @@ export class RoleRepository implements IRoleRepository {
     const ids = rows.map((r) => r.id);
     const [perms, members] = await Promise.all([
       this.db.select().from(rolePermissions).where(inArray(rolePermissions.roleId, ids)),
+      // Members are counted inside the current company: a shared system role is held by users of many companies.
       this.db
         .select({ roleId: userRoles.roleId, n: count() })
         .from(userRoles)
-        .where(inArray(userRoles.roleId, ids))
+        .innerJoin(users, eq(users.id, userRoles.userId))
+        .where(and(inArray(userRoles.roleId, ids), tenant.current() ? eq(users.companyId, tenant.id()) : undefined))
         .groupBy(userRoles.roleId),
     ]);
     return rows.map((r) => ({
@@ -27,6 +36,7 @@ export class RoleRepository implements IRoleRepository {
       name: r.name,
       description: r.description,
       isSystem: r.isSystem,
+      companyId: r.companyId,
       permissionKeys: perms.filter((p) => p.roleId === r.id).map((p) => p.permissionKey).sort(),
       memberCount: members.find((m) => m.roleId === r.id)?.n ?? 0,
       createdAt: r.createdAt,
@@ -35,27 +45,31 @@ export class RoleRepository implements IRoleRepository {
   }
 
   async list() {
-    return this.hydrate(await this.db.select().from(roles).orderBy(roles.name));
+    return this.hydrate(await this.db.select().from(roles).where(visible()).orderBy(roles.name));
   }
 
   async findById(id: string) {
-    return (await this.hydrate(await this.db.select().from(roles).where(eq(roles.id, id)).limit(1)))[0] ?? null;
+    return (await this.hydrate(await this.db.select().from(roles).where(and(eq(roles.id, id), visible())).limit(1)))[0] ?? null;
   }
 
   async findByIds(ids: string[]) {
     if (ids.length === 0) return [];
-    return this.hydrate(await this.db.select().from(roles).where(inArray(roles.id, ids)));
+    return this.hydrate(await this.db.select().from(roles).where(and(inArray(roles.id, ids), visible())));
   }
 
   async findByName(name: string) {
-    return (await this.hydrate(await this.db.select().from(roles).where(eq(roles.name, name)).limit(1)))[0] ?? null;
+    return (await this.hydrate(await this.db.select().from(roles).where(and(eq(roles.name, name), visible())).limit(1)))[0] ?? null;
   }
 
   async create(input: { name: string; description: string; isSystem?: boolean; permissionKeys: string[] }) {
     const id = await this.db.transaction(async (tx) => {
       const [row] = await tx
         .insert(roles)
-        .values({ name: input.name, description: input.description, isSystem: input.isSystem ?? false })
+        .values({
+          name: input.name, description: input.description, isSystem: input.isSystem ?? false,
+          // System roles are shared; custom roles belong to the company that creates them.
+          companyId: input.isSystem ? null : tenant.id(),
+        })
         .returning({ id: roles.id });
       if (input.permissionKeys.length) {
         await tx.insert(rolePermissions).values(input.permissionKeys.map((k) => ({ roleId: row!.id, permissionKey: k })));

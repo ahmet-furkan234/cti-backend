@@ -38,8 +38,8 @@ export class AuthController {
   logout(token: string | undefined) {
     return this.logoutUc.execute(token);
   }
-  me(userId: string) {
-    return this.meUc.execute(userId);
+  me(userId: string, actingCompanyId?: string) {
+    return this.meUc.execute(userId, actingCompanyId);
   }
   changePassword(
     a: Actor,

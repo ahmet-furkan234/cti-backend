@@ -5,6 +5,8 @@ export type UserStatus = 'active' | 'disabled';
 
 export interface UserProps {
   id?: string;
+  /** the one company the user belongs to */
+  companyId: string;
   email: string | Email;
   name: string;
   passwordHash: string;
@@ -21,6 +23,7 @@ export const LOCK_MINUTES = 15;
 
 export class User {
   public readonly id: string;
+  public readonly companyId: string;
   public email: Email;
   public name: string;
   public passwordHash: string;
@@ -33,6 +36,7 @@ export class User {
 
   constructor(props: UserProps) {
     this.id = props.id ?? randomUUID();
+    this.companyId = props.companyId;
     this.email = props.email instanceof Email ? props.email : Email.from(props.email);
     this.name = props.name.trim();
     this.passwordHash = props.passwordHash;

@@ -26,6 +26,8 @@ export interface AuthToken {
   tokenHash: string;
   email: string | null;
   userId: string | null;
+  /** invites: the company the new user joins */
+  companyId: string | null;
   roleIds: string[];
   expiresAt: Date;
   usedAt: Date | null;

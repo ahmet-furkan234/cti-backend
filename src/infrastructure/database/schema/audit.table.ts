@@ -5,6 +5,8 @@ export const auditLog = pgTable(
   'audit_log',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    /** the company the event happened in; null for events that belong to no company (e.g. unknown login) */
+    companyId: uuid('company_id'),
     actorId: uuid('actor_id'),
     actorEmail: text('actor_email'),
     action: text('action').notNull(),
@@ -16,6 +18,7 @@ export const auditLog = pgTable(
   },
   (t) => [
     index('audit_at_idx').on(t.at.desc(), t.id.desc()),
+    index('audit_company_idx').on(t.companyId, t.at.desc()),
     index('audit_actor_idx').on(t.actorId, t.at.desc()),
     index('audit_action_idx').on(t.action, t.at.desc()),
   ],

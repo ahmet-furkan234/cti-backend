@@ -3,7 +3,7 @@ import { TYPES } from '../../../shared/tokens.js';
 import type { IPermissionRepository, IRoleRepository } from '../../../domain/rbac/role.repository.interface.js';
 import { PermissionKey } from '../../../domain/common/value-objects/permission-key.value-object.js';
 import { RoleName } from '../../../domain/common/value-objects/role-name.value-object.js';
-import { SUPER_ADMIN_ROLE } from '../../../domain/rbac/permission-catalog.js';
+import { PLATFORM_ONLY_ROLES, SUPER_ADMIN_ROLE } from '../../../domain/rbac/permission-catalog.js';
 import {
   AlreadyExistsException,
   ConflictException,
@@ -11,7 +11,8 @@ import {
   NotFoundException,
 } from '../../../domain/common/exceptions.js';
 import { EffectivePermissionService } from '../services/effective-permission.service.js';
-import { assertCanGrant, assertKnownPermissions } from '../../shared/access-guard.js';
+import { assertCanGrant, assertKnownPermissions, assertPlatformKeysAllowed } from '../../shared/access-guard.js';
+import { tenant } from '../../../shared/tenant.js';
 import { AuditService } from '../../audit/audit.service.js';
 import { auditActor, type Actor } from '../../shared/actor.js';
 import { AuditAction, Entity, Errors } from '../../../shared/strings.js';
@@ -19,8 +20,10 @@ import { AuditAction, Entity, Errors } from '../../../shared/strings.js';
 @injectable()
 export class ListRolesUseCase {
   constructor(@inject(TYPES.IRoleRepository) private readonly roles: IRoleRepository) {}
-  execute() {
-    return this.roles.list();
+  /** Roles reserved for the platform company are not offered to other companies. */
+  async execute() {
+    const roles = await this.roles.list();
+    return tenant.require().platform ? roles : roles.filter((r) => !PLATFORM_ONLY_ROLES.includes(r.name));
   }
 }
 
@@ -55,6 +58,7 @@ export class CreateRoleUseCase {
     if (await this.roles.findByName(name)) throw new AlreadyExistsException(Entity.role, 'name');
     const keys = PermissionKey.fromAll(input.permissionKeys).map((k) => k.value);
     await assertKnownPermissions(this.permissions, keys);
+    assertPlatformKeysAllowed(keys);
     assertCanGrant(actor.permissions, keys);
 
     const role = await this.roles.create({ name, description: input.description, permissionKeys: keys });
@@ -75,6 +79,8 @@ export class UpdateRoleUseCase {
   async execute(actor: Actor, id: string, input: { name?: string; description?: string; permissionKeys?: string[] }) {
     const role = await this.roles.findById(id);
     if (!role) throw new NotFoundException(Entity.role);
+    // System roles are shared by every company, so only the platform company may change them.
+    if (role.isSystem && !tenant.require().platform) throw new ForbiddenException(Errors.systemRoleEditPlatformOnly);
 
     if (role.isSystem && input.name !== undefined && RoleName.from(input.name).value !== role.name) {
       throw new ForbiddenException(Errors.systemRoleNameImmutable);
@@ -97,6 +103,7 @@ export class UpdateRoleUseCase {
       await assertKnownPermissions(this.permissions, keys);
       const added = keys.filter((k) => !role.permissionKeys.includes(k));
       // An actor may only ADD permissions they hold themselves.
+      assertPlatformKeysAllowed(added);
       assertCanGrant(actor.permissions, added);
       patch.permissionKeys = keys;
       diff = { added, removed: role.permissionKeys.filter((k) => !keys.includes(k)) };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LOCK_MINUTES, MAX_FAILED_LOGINS, User } from './user.entity.js';
 
-const make = () => new User({ email: '  Foo@Example.COM ', name: ' Foo ', passwordHash: 'h' });
+const make = () => new User({ companyId: 'c1', email: '  Foo@Example.COM ', name: ' Foo ', passwordHash: 'h' });
 
 describe('User', () => {
   it('normalises email and name', () => {

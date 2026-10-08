@@ -1,4 +1,5 @@
 import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { companies } from './company.table.js';
 import { users } from './users.table.js';
 
 export const refreshTokens = pgTable(
@@ -26,6 +27,8 @@ export const authTokens = pgTable(
     tokenHash: text('token_hash').notNull().unique(),
     email: text('email'),
     userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    /** invites: the company the new user joins */
+    companyId: uuid('company_id').references(() => companies.id, { onDelete: 'cascade' }),
     roleIds: jsonb('role_ids').$type<string[]>().notNull().default([]),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     usedAt: timestamp('used_at', { withTimezone: true }),

@@ -22,10 +22,13 @@ describe('Email', () => {
 });
 
 describe('PlainPassword', () => {
-  it('enforces the length policy', () => {
+  it('enforces the secure password policy', () => {
     expect(() => PlainPassword.from('short')).toThrow(InvalidValueException);
-    expect(() => PlainPassword.from('x'.repeat(129))).toThrow(InvalidValueException);
-    expect(PlainPassword.from('x'.repeat(12)).reveal()).toBe('x'.repeat(12));
+    expect(() => PlainPassword.from(`A1!${'x'.repeat(126)}`)).toThrow(InvalidValueException);
+    expect(() => PlainPassword.from('alllowercase-123!')).toThrow(InvalidValueException);
+    expect(() => PlainPassword.from('NoSymbol1234')).toThrow(InvalidValueException);
+    expect(() => PlainPassword.from('Has Space-123!')).toThrow(InvalidValueException);
+    expect(PlainPassword.from('Correct-Horse-9!').reveal()).toBe('Correct-Horse-9!');
   });
   it('never leaks through string conversion or JSON (logs, error dumps)', () => {
     const p = PlainPassword.from('Correct-Horse-Battery-9!');

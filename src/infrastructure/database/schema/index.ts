@@ -1,3 +1,4 @@
+export * from './company.table.js';
 export * from './users.table.js';
 export * from './rbac.tables.js';
 export * from './auth.tables.js';

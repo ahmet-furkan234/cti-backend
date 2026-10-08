@@ -2,6 +2,7 @@ import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { inject, injectable } from 'inversify';
 import { TYPES } from '../../../shared/tokens.js';
 import type { AuditEntry, IAuditRepository, ListAuditQuery } from '../../../domain/audit/audit.repository.interface.js';
+import { tenant } from '../../../shared/tenant.js';
 import type { Database } from '../client.js';
 import { auditLog } from '../schema/index.js';
 
@@ -14,7 +15,7 @@ export class AuditRepository implements IAuditRepository {
   }
 
   async list(q: ListAuditQuery): Promise<AuditEntry[]> {
-    const conds = [];
+    const conds = [eq(auditLog.companyId, tenant.id())];
     if (q.actorId) conds.push(eq(auditLog.actorId, q.actorId));
     if (q.action) conds.push(eq(auditLog.action, q.action));
     if (q.targetId) conds.push(eq(auditLog.targetId, q.targetId));

@@ -1,10 +1,11 @@
-import { eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { inject, injectable } from 'inversify';
 import { TYPES } from '../../../shared/tokens.js';
 import type {
   Asset, AssetListItem, AssetPatch, AssetSort, AssetStats, AssetStatus, AssetTab, IAssetRepository, ImportRecord, ListAssetsQuery,
   ListAssetsResult, NewAsset, NewImportRecord, SoftwareItem,
 } from '../../../domain/inventory/inventory.repository.interface.js';
+import { tenant } from '../../../shared/tenant.js';
 import type { Database } from '../client.js';
 import { assetImports, assets, assetSoftware } from '../schema/index.js';
 
@@ -41,7 +42,7 @@ export class AssetRepository implements IAssetRepository {
   constructor(@inject(TYPES.DrizzleDatabase) private readonly db: Database) {}
 
   private where(q: ListAssetsQuery): SQL {
-    const c: SQL[] = [sql`true`];
+    const c: SQL[] = [sql`a.company_id = ${tenant.id()}`];
     const types = TAB_TYPES[q.tab];
     if (types) c.push(sql`a.type in (${sql.join(types.map((t) => sql`${t}`), sql`, `)})`);
     const term = q.q?.trim();
@@ -111,9 +112,9 @@ export class AssetRepository implements IAssetRepository {
       count(*) filter (where type = 'fw')::int as net,
       count(*) filter (where type = 'container')::int as ctr,
       count(*) filter (where type = 'cloud')::int as cld,
-      (select count(distinct av.asset_id)::int from asset_vulns av join cve c on c.id = av.cve_id
-        where av.status in ('open', 'in_progress') and c.cvss_severity = 4) as with_critical
-      from assets`);
+      (select count(distinct av.asset_id)::int from asset_vulns av join assets x on x.id = av.asset_id join cve c on c.id = av.cve_id
+        where x.company_id = ${tenant.id()} and av.status in ('open', 'in_progress') and c.cvss_severity = 4) as with_critical
+      from assets where company_id = ${tenant.id()}`);
     const r = rowsOf<Record<string, number>>(res)[0] ?? {};
     const n = (k: string) => Number(r[k] ?? 0);
     return {
@@ -132,14 +133,14 @@ export class AssetRepository implements IAssetRepository {
   }
 
   async findById(id: string): Promise<Asset | null> {
-    const [row] = await this.db.select().from(assets).where(eq(assets.id, id)).limit(1);
+    const [row] = await this.db.select().from(assets).where(and(eq(assets.id, id), eq(assets.companyId, tenant.id()))).limit(1);
     return row ? toAsset(row, (await this.softwareOf([id])).get(id) ?? []) : null;
   }
 
   async findByIdentity(name: string | null, addr: string | null): Promise<Asset | null> {
     if (!name && !addr) return null;
     const cond = [name ? sql`lower(name) = ${name.toLowerCase()}` : undefined, addr ? sql`addr = ${addr}` : undefined].filter(Boolean) as SQL[];
-    const [row] = await this.db.select().from(assets).where(sql.join(cond, sql` or `)).limit(1);
+    const [row] = await this.db.select().from(assets).where(and(eq(assets.companyId, tenant.id()), sql`(${sql.join(cond, sql` or `)})`)).limit(1);
     return row ? toAsset(row, (await this.softwareOf([row.id])).get(row.id) ?? []) : null;
   }
 
@@ -150,7 +151,7 @@ export class AssetRepository implements IAssetRepository {
 
   async create(input: NewAsset): Promise<Asset> {
     const { software, ...fields } = input;
-    const [row] = await this.db.insert(assets).values(fields).returning();
+    const [row] = await this.db.insert(assets).values({ ...fields, companyId: tenant.id() }).returning();
     await this.writeSoftware(row!.id, software);
     return toAsset(row!, software);
   }
@@ -160,31 +161,32 @@ export class AssetRepository implements IAssetRepository {
     const set: Partial<typeof assets.$inferInsert> = { ...fields, updatedAt: new Date() };
     if (seen) set.lastSeenAt = new Date();
     if (archived !== undefined) set.archivedAt = archived ? new Date() : null;
-    const [row] = await this.db.update(assets).set(set).where(eq(assets.id, id)).returning();
+    const [row] = await this.db.update(assets).set(set).where(and(eq(assets.id, id), eq(assets.companyId, tenant.id()))).returning();
     if (!row) return null;
     if (software) await this.writeSoftware(id, software);
     return toAsset(row, software ?? (await this.softwareOf([id])).get(id) ?? []);
   }
 
   async delete(id: string): Promise<boolean> {
-    return (await this.db.delete(assets).where(eq(assets.id, id)).returning({ id: assets.id })).length > 0;
+    return (await this.db.delete(assets).where(and(eq(assets.id, id), eq(assets.companyId, tenant.id()))).returning({ id: assets.id })).length > 0;
   }
 
   async forMatching(id?: string): Promise<Asset[]> {
-    const rows = id ? await this.db.select().from(assets).where(eq(assets.id, id)) : await this.db.select().from(assets);
+    const mine = eq(assets.companyId, tenant.id());
+    const rows = await this.db.select().from(assets).where(id ? and(mine, eq(assets.id, id)) : mine);
     const sw = await this.softwareOf(rows.map((r) => r.id));
     return rows.map((r) => toAsset(r, sw.get(r.id) ?? []));
   }
 
   async imports(limit: number): Promise<ImportRecord[]> {
-    return (await this.db.select().from(assetImports).orderBy(sql`${assetImports.createdAt} desc`).limit(limit)).map((r) => ({
+    return (await this.db.select().from(assetImports).where(eq(assetImports.companyId, tenant.id())).orderBy(sql`${assetImports.createdAt} desc`).limit(limit)).map((r) => ({
       id: r.id, source: r.source, kind: r.kind, rows: r.rows, created: r.created, updated: r.updated, skipped: r.skipped,
       status: r.status, createdAt: r.createdAt,
     }));
   }
 
   async recordImport(input: NewImportRecord): Promise<ImportRecord> {
-    const [r] = await this.db.insert(assetImports).values(input).returning();
+    const [r] = await this.db.insert(assetImports).values({ ...input, companyId: tenant.id() }).returning();
     return {
       id: r!.id, source: r!.source, kind: r!.kind, rows: r!.rows, created: r!.created, updated: r!.updated, skipped: r!.skipped,
       status: r!.status, createdAt: r!.createdAt,

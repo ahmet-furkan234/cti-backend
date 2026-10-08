@@ -27,6 +27,9 @@ export class UserRouter {
     r.post('/invite', need(P.USER_CREATE), check({ body: S.inviteBody }), wrap(async (req, res) => {
       res.status(201).json(await this.c.invite(actorOf(req), valid(req, { body: S.inviteBody }).body));
     }));
+    r.post('/', need(P.USER_CREATE), check({ body: S.createUserBody }), wrap(async (req, res) => {
+      res.status(201).json(await this.c.create(actorOf(req), valid(req, { body: S.createUserBody }).body));
+    }));
     r.get('/:id', need(P.USER_READ), check({ params: S.idParams }), wrap(async (req, res) => {
       res.json(await this.c.get(valid(req, { params: S.idParams }).params.id));
     }));

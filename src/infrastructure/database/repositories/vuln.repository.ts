@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { inject, injectable } from 'inversify';
 import { TYPES } from '../../../shared/tokens.js';
 import type { CpeMatch, SeverityLevel } from '../../../domain/cve/cve.repository.interface.js';
@@ -6,6 +6,7 @@ import type {
   CveAssetRow, FoundMatch, IVulnRepository, ListVulnsQuery, MatchCandidate, VulnRow,
 } from '../../../domain/vuln/vuln.repository.interface.js';
 import type { VulnStatus } from '../../../domain/vuln/risk.js';
+import { tenant } from '../../../shared/tenant.js';
 import type { Database } from '../client.js';
 import { assetVulns, softwareAliases } from '../schema/index.js';
 
@@ -16,6 +17,8 @@ const pgArray = (items: string[]) => sql`ARRAY[${sql.join(items.map((i) => sql`$
 const SELECT = sql`select av.id, av.cve_id, av.asset_id, a.name as host, a.env, a.exposed, a.addr, a.os, a.owner, a.source, a.last_seen_at,
     c.is_kev, c.cvss_score, c.cvss_severity, c.epss, av.status, av.first_seen_at, av.component, av.installed_version, av.fixed_version
   from asset_vulns av join assets a on a.id = av.asset_id join cve c on c.id = av.cve_id`;
+/** every read goes through this: a company only ever sees matches on its own assets */
+const mine = () => sql`a.company_id = ${tenant.id()}`;
 
 function toRow(r: Record<string, unknown>): CveAssetRow {
   return {
@@ -43,17 +46,17 @@ export class VulnRepository implements IVulnRepository {
   }
 
   async aliases() {
-    const rows = await this.db.select().from(softwareAliases).orderBy(softwareAliases.name);
+    const rows = await this.db.select().from(softwareAliases).where(eq(softwareAliases.companyId, tenant.id())).orderBy(softwareAliases.name);
     return rows.map((r) => ({ id: r.id, name: r.name, pair: r.pair, createdAt: r.createdAt }));
   }
 
   async createAlias(input: { name: string; pair: string; createdBy: string | null }) {
-    const [r] = await this.db.insert(softwareAliases).values(input).onConflictDoNothing().returning();
+    const [r] = await this.db.insert(softwareAliases).values({ ...input, companyId: tenant.id() }).onConflictDoNothing().returning();
     return r ? { id: r.id, name: r.name, pair: r.pair, createdAt: r.createdAt } : null;
   }
 
   async deleteAlias(id: string) {
-    return (await this.db.delete(softwareAliases).where(eq(softwareAliases.id, id)).returning({ id: softwareAliases.id })).length > 0;
+    return (await this.db.delete(softwareAliases).where(and(eq(softwareAliases.id, id), eq(softwareAliases.companyId, tenant.id()))).returning({ id: softwareAliases.id })).length > 0;
   }
 
   async productPairs(): Promise<{ pair: string; cves: number }[]> {
@@ -80,7 +83,7 @@ export class VulnRepository implements IVulnRepository {
   }
 
   async list(q: ListVulnsQuery): Promise<VulnRow[]> {
-    const c = [sql`true`];
+    const c = [mine()];
     if (q.status) c.push(sql`av.status = ${q.status}`);
     if (q.kev) c.push(sql`c.is_kev`);
     if (q.exposed) c.push(sql`a.exposed`);
@@ -96,7 +99,7 @@ export class VulnRepository implements IVulnRepository {
   }
 
   async forCve(cveId: string): Promise<CveAssetRow[]> {
-    const res = await this.db.execute(sql`${SELECT} where av.cve_id = ${cveId} order by a.name`);
+    const res = await this.db.execute(sql`${SELECT} where ${mine()} and av.cve_id = ${cveId} order by a.name`);
     return rowsOf<Record<string, unknown>>(res).map(toRow);
   }
 
@@ -104,7 +107,7 @@ export class VulnRepository implements IVulnRepository {
     const res = await this.db
       .update(assetVulns)
       .set({ status, statusChangedAt: new Date(), statusChangedBy: actorId })
-      .where(inArray(assetVulns.id, ids))
+      .where(and(inArray(assetVulns.id, ids), sql`${assetVulns.assetId} in (select id from assets where company_id = ${tenant.id()})`))
       .returning({ id: assetVulns.id });
     return res.length;
   }

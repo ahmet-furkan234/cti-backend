@@ -5,6 +5,7 @@ import type {
   AlertEvent, Channel, IAlertRepository, LogEntry, NewChannel, NewLogEntry, NewRule, Rule,
 } from '../../../domain/alerts/alert.repository.interface.js';
 import { SLA_LEFT_SQL } from '../sql.js';
+import { tenant } from '../../../shared/tenant.js';
 import type { Database } from '../client.js';
 import { alertChannels, alertLog, alertRules } from '../schema/index.js';
 
@@ -27,30 +28,30 @@ export class AlertRepository implements IAlertRepository {
   constructor(@inject(TYPES.DrizzleDatabase) private readonly db: Database) {}
 
   async channels(): Promise<Channel[]> {
-    return (await this.db.select().from(alertChannels).orderBy(alertChannels.createdAt)).map(toChannel);
+    return (await this.db.select().from(alertChannels).where(eq(alertChannels.companyId, tenant.id())).orderBy(alertChannels.createdAt)).map(toChannel);
   }
   async findChannel(id: string): Promise<Channel | null> {
-    const [r] = await this.db.select().from(alertChannels).where(eq(alertChannels.id, id)).limit(1);
+    const [r] = await this.db.select().from(alertChannels).where(and(eq(alertChannels.id, id), eq(alertChannels.companyId, tenant.id()))).limit(1);
     return r ? toChannel(r) : null;
   }
   async createChannel(input: NewChannel): Promise<Channel> {
-    const [r] = await this.db.insert(alertChannels).values(input).returning();
+    const [r] = await this.db.insert(alertChannels).values({ ...input, companyId: tenant.id() }).returning();
     return toChannel(r!);
   }
   async updateChannel(id: string, patch: Parameters<IAlertRepository['updateChannel']>[1]): Promise<Channel | null> {
-    const [r] = await this.db.update(alertChannels).set(patch).where(eq(alertChannels.id, id)).returning();
+    const [r] = await this.db.update(alertChannels).set(patch).where(and(eq(alertChannels.id, id), eq(alertChannels.companyId, tenant.id()))).returning();
     return r ? toChannel(r) : null;
   }
   async deleteChannel(id: string): Promise<boolean> {
-    const gone = await this.db.delete(alertChannels).where(eq(alertChannels.id, id)).returning({ id: alertChannels.id });
+    const gone = await this.db.delete(alertChannels).where(and(eq(alertChannels.id, id), eq(alertChannels.companyId, tenant.id()))).returning({ id: alertChannels.id });
     // Rules keep working without the channel instead of pointing at nothing.
-    await this.db.execute(sql`update alert_rules set channel_ids = array_remove(channel_ids, ${id}::uuid) where ${id}::uuid = any(channel_ids)`);
+    await this.db.execute(sql`update alert_rules set channel_ids = array_remove(channel_ids, ${id}::uuid) where company_id = ${tenant.id()} and ${id}::uuid = any(channel_ids)`);
     return gone.length > 0;
   }
 
   private async withCounts(where?: SQL): Promise<Rule[]> {
     const res = await this.db.execute(sql`select r.*, (select count(*)::int from alert_log l where l.rule_id = r.id and l.result = 'sent'
-        and l.at > now() - interval '30 days') as fired30 from alert_rules r ${where ? sql`where ${where}` : sql``} order by r.created_at desc`);
+        and l.at > now() - interval '30 days') as fired30 from alert_rules r where r.company_id = ${tenant.id()}${where ? sql` and ${where}` : sql``} order by r.created_at desc`);
     return rowsOf<Record<string, unknown>>(res).map((r) => ({
       id: r['id'] as string, name: r['name'] as string, trigger: r['trigger'] as Rule['trigger'], envs: r['envs'] as string[],
       minRisk: Number(r['min_risk']), exposedOnly: r['exposed_only'] as boolean, tag: r['tag'] as string,
@@ -66,25 +67,25 @@ export class AlertRepository implements IAlertRepository {
     return (await this.withCounts(sql`r.id = ${id}`))[0] ?? null;
   }
   async createRule(input: NewRule): Promise<Rule> {
-    const [r] = await this.db.insert(alertRules).values(input).returning({ id: alertRules.id });
+    const [r] = await this.db.insert(alertRules).values({ ...input, companyId: tenant.id() }).returning({ id: alertRules.id });
     return (await this.findRule(r!.id))!;
   }
   async updateRule(id: string, patch: Partial<NewRule>): Promise<Rule | null> {
-    const res = await this.db.update(alertRules).set(patch).where(eq(alertRules.id, id)).returning({ id: alertRules.id });
+    const res = await this.db.update(alertRules).set(patch).where(and(eq(alertRules.id, id), eq(alertRules.companyId, tenant.id()))).returning({ id: alertRules.id });
     return res.length ? this.findRule(id) : null;
   }
   async deleteRule(id: string): Promise<boolean> {
-    return (await this.db.delete(alertRules).where(eq(alertRules.id, id)).returning({ id: alertRules.id })).length > 0;
+    return (await this.db.delete(alertRules).where(and(eq(alertRules.id, id), eq(alertRules.companyId, tenant.id()))).returning({ id: alertRules.id })).length > 0;
   }
   async markEvaluated(id: string, at: Date, fired: boolean): Promise<void> {
     await this.db.update(alertRules).set(fired ? { evaluatedAt: at, lastFiredAt: at } : { evaluatedAt: at }).where(eq(alertRules.id, id));
   }
 
   async log(limit: number): Promise<LogEntry[]> {
-    return (await this.db.select().from(alertLog).orderBy(desc(alertLog.at)).limit(limit)).map(toLog);
+    return (await this.db.select().from(alertLog).where(eq(alertLog.companyId, tenant.id())).orderBy(desc(alertLog.at)).limit(limit)).map(toLog);
   }
   async addLog(entry: NewLogEntry): Promise<LogEntry> {
-    const [r] = await this.db.insert(alertLog).values(entry).returning();
+    const [r] = await this.db.insert(alertLog).values({ ...entry, companyId: tenant.id() }).returning();
     return toLog(r!);
   }
   async recentlyNotifiedAssets(ruleId: string, since: Date): Promise<Set<string>> {
@@ -96,7 +97,7 @@ export class AlertRepository implements IAlertRepository {
   }
 
   private ruleFilters(rule: Rule): SQL[] {
-    const c: SQL[] = [];
+    const c: SQL[] = [sql`a.company_id = ${tenant.id()}`];
     if (rule.envs.length) c.push(sql`a.env in (${sql.join(rule.envs.map((e) => sql`${e}`), sql`, `)})`);
     if (rule.exposedOnly) c.push(sql`a.exposed`);
     if (rule.tag.trim()) c.push(sql`${rule.tag.trim()} = any(a.tags)`);
@@ -140,7 +141,7 @@ export class AlertRepository implements IAlertRepository {
       count(*) filter (where av.status in ('open', 'in_progress'))::int as open,
       count(*) filter (where av.status in ('open', 'in_progress') and c.is_kev)::int as kev,
       count(*) filter (where av.status in ('open', 'in_progress') and c.cvss_severity = 4)::int as critical
-      from asset_vulns av join cve c on c.id = av.cve_id`);
+      from asset_vulns av join assets a on a.id = av.asset_id join cve c on c.id = av.cve_id where a.company_id = ${tenant.id()}`);
     const r = rowsOf<Record<string, number>>(res)[0] ?? {};
     return { open: Number(r['open'] ?? 0), kev: Number(r['kev'] ?? 0), critical: Number(r['critical'] ?? 0) };
   }

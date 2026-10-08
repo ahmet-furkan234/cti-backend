@@ -1,8 +1,10 @@
 import { sql } from 'drizzle-orm';
+import { companies } from './company.table.js';
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const alertChannels = pgTable('alert_channels', {
   id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
   kind: text('kind', { enum: ['slack', 'smtp', 'telegram', 'webhook'] }).notNull(),
   name: text('name').notNull(),
   /** field id → value; the fields per kind are defined by the web app */
@@ -15,6 +17,7 @@ export const alertChannels = pgTable('alert_channels', {
 
 export const alertRules = pgTable('alert_rules', {
   id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   trigger: text('trigger', { enum: ['kev', 'critical', 'sla', 'epss', 'sync', 'digest'] }).notNull(),
   envs: text('envs').array().notNull().default(sql`'{}'::text[]`),
@@ -34,6 +37,7 @@ export const alertLog = pgTable(
   'alert_log',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
     ruleId: uuid('rule_id'),
     assetId: uuid('asset_id'),
     channelIds: uuid('channel_ids').array().notNull().default(sql`'{}'::uuid[]`),

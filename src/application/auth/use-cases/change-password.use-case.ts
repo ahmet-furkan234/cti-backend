@@ -26,6 +26,6 @@ export class ChangePasswordUseCase {
     user.changePasswordHash(await this.hasher.hash(PlainPassword.from(newPassword).reveal()));
     await this.users.save(user);
     await this.refreshRepo.revokeAllForUser(userId);
-    await this.audit.record({ id: userId, email: user.email.value, ip }, AuditAction.authPasswordChanged, { type: 'user', id: userId });
+    await this.audit.record({ id: userId, email: user.email.value, ip, companyId: user.companyId }, AuditAction.authPasswordChanged, { type: 'user', id: userId });
   }
 }

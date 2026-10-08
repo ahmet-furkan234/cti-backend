@@ -1,8 +1,10 @@
 import { sql } from 'drizzle-orm';
+import { companies } from './company.table.js';
 import { boolean, index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const reportSchedules = pgTable('report_schedules', {
   id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
   template: text('template', { enum: ['exec', 'kev', 'sla', 'owner'] }).notNull(),
   /** limits the report to one team / owner */
   scope: text('scope'),
@@ -17,6 +19,7 @@ export const reportRuns = pgTable(
   'report_runs',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
     scheduleId: uuid('schedule_id'),
     template: text('template', { enum: ['exec', 'kev', 'sla', 'owner'] }).notNull(),
     scope: text('scope'),

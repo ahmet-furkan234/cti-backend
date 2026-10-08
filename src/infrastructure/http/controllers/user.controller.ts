@@ -3,7 +3,7 @@ import { TYPES } from '../../../shared/tokens.js';
 import type { Actor } from '../../../application/shared/actor.js';
 import type { OverrideEffect } from '../../../domain/rbac/effective-permissions.js';
 import type { UserStatus } from '../../../domain/user/user.entity.js';
-import { DeleteUserUseCase, GetUserEffectivePermissionsUseCase, GetUserUseCase, InviteUserUseCase, IssuePasswordResetUseCase, ListUsersUseCase, RevokeUserSessionsUseCase, SetUserPermissionOverridesUseCase, UpdateUserUseCase } from '../../../application/user/use-cases/user.use-cases.js';
+import { CreateUserUseCase, DeleteUserUseCase, GetUserEffectivePermissionsUseCase, GetUserUseCase, InviteUserUseCase, IssuePasswordResetUseCase, ListUsersUseCase, RevokeUserSessionsUseCase, SetUserPermissionOverridesUseCase, UpdateUserUseCase } from '../../../application/user/use-cases/user.use-cases.js';
 
 @injectable()
 export class UserController {
@@ -12,6 +12,8 @@ export class UserController {
     @inject(TYPES.GetUserUseCase) private readonly get_: GetUserUseCase,
     @inject(TYPES.InviteUserUseCase)
     private readonly invite_: InviteUserUseCase,
+    @inject(TYPES.CreateUserUseCase)
+    private readonly create_: CreateUserUseCase,
     @inject(TYPES.UpdateUserUseCase)
     private readonly update_: UpdateUserUseCase,
     @inject(TYPES.DeleteUserUseCase)
@@ -41,6 +43,9 @@ export class UserController {
   }
   invite(a: Actor, b: { email: string; roleIds: string[] }) {
     return this.invite_.execute(a, b);
+  }
+  create(a: Actor, b: { name: string; email: string; password: string; roleIds: string[]; overrides: { key: string; effect: OverrideEffect }[] }) {
+    return this.create_.execute(a, b);
   }
   update(
     a: Actor,

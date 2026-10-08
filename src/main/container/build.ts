@@ -44,7 +44,7 @@ import {
   GetAuthTokenInfoUseCase, RegisterWithInviteUseCase, ResetPasswordUseCase,
 } from '../../application/auth/use-cases/auth-token.use-cases.js';
 import {
-  DeleteUserUseCase, GetUserEffectivePermissionsUseCase, GetUserUseCase, InviteUserUseCase,
+  CreateUserUseCase, DeleteUserUseCase, GetUserEffectivePermissionsUseCase, GetUserUseCase, InviteUserUseCase,
   IssuePasswordResetUseCase, ListUsersUseCase, RevokeUserSessionsUseCase, SetUserPermissionOverridesUseCase,
   UpdateUserUseCase,
 } from '../../application/user/use-cases/user.use-cases.js';
@@ -71,6 +71,10 @@ import { CveController } from '../../infrastructure/http/controllers/cve.control
 import { RoleController } from '../../infrastructure/http/controllers/role.controller.js';
 import { SyncController } from '../../infrastructure/http/controllers/sync.controller.js';
 import { UserController } from '../../infrastructure/http/controllers/user.controller.js';
+import { CompanyRepository } from '../../infrastructure/database/repositories/company.repository.js';
+import { CompanyUseCases } from '../../application/company/company.use-cases.js';
+import { CompanyController } from '../../infrastructure/http/controllers/company.controller.js';
+import { CompanyRouter } from '../../infrastructure/http/routers/company.router.js';
 import { AuditRouter } from '../../infrastructure/http/routers/audit.router.js';
 import { AuthRouter } from '../../infrastructure/http/routers/auth.router.js';
 import { CveRouter } from '../../infrastructure/http/routers/cve.router.js';
@@ -110,6 +114,7 @@ export function buildContainer(): BuiltContainer {
   container.bind(TYPES.IAlertRepository).to(AlertRepository);
   container.bind(TYPES.IIntelRepository).to(IntelRepository);
   container.bind(TYPES.IReportRepository).to(ReportRepository);
+  container.bind(TYPES.ICompanyRepository).to(CompanyRepository);
   container.bind(TYPES.IChannelDispatcher).to(ChannelDispatcher);
 
   container.bind(TYPES.EffectivePermissionService).to(EffectivePermissionService);
@@ -136,6 +141,7 @@ export function buildContainer(): BuiltContainer {
   container.bind(TYPES.ListUsersUseCase).to(ListUsersUseCase);
   container.bind(TYPES.GetUserUseCase).to(GetUserUseCase);
   container.bind(TYPES.InviteUserUseCase).to(InviteUserUseCase);
+  container.bind(TYPES.CreateUserUseCase).to(CreateUserUseCase);
   container.bind(TYPES.UpdateUserUseCase).to(UpdateUserUseCase);
   container.bind(TYPES.DeleteUserUseCase).to(DeleteUserUseCase);
   container.bind(TYPES.SetUserPermissionOverridesUseCase).to(SetUserPermissionOverridesUseCase);
@@ -171,6 +177,9 @@ export function buildContainer(): BuiltContainer {
   container.bind(TYPES.SetVulnStatusUseCase).to(SetVulnStatusUseCase);
   container.bind(TYPES.RematchVulnsUseCase).to(RematchVulnsUseCase);
 
+  container.bind(TYPES.CompanyUseCases).to(CompanyUseCases);
+  container.bind(TYPES.CompanyController).to(CompanyController);
+  container.bind(TYPES.CompanyRouter).to(CompanyRouter);
   container.bind(TYPES.AuthMiddleware).to(AuthMiddleware);
   container.bind(TYPES.AuthController).to(AuthController);
   container.bind(TYPES.AuthRouter).to(AuthRouter);

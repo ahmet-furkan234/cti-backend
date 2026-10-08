@@ -21,6 +21,7 @@ export const TYPES = {
   IAlertRepository: Symbol.for('IAlertRepository'),
   IIntelRepository: Symbol.for('IIntelRepository'),
   IReportRepository: Symbol.for('IReportRepository'),
+  ICompanyRepository: Symbol.for('ICompanyRepository'),
   IChannelDispatcher: Symbol.for('IChannelDispatcher'),
 
   // Application services
@@ -50,6 +51,7 @@ export const TYPES = {
   ListUsersUseCase: Symbol.for('ListUsersUseCase'),
   GetUserUseCase: Symbol.for('GetUserUseCase'),
   InviteUserUseCase: Symbol.for('InviteUserUseCase'),
+  CreateUserUseCase: Symbol.for('CreateUserUseCase'),
   UpdateUserUseCase: Symbol.for('UpdateUserUseCase'),
   DeleteUserUseCase: Symbol.for('DeleteUserUseCase'),
   SetUserPermissionOverridesUseCase: Symbol.for('SetUserPermissionOverridesUseCase'),
@@ -112,4 +114,7 @@ export const TYPES = {
   IntelRouter: Symbol.for('IntelRouter'),
   ReportController: Symbol.for('ReportController'),
   ReportRouter: Symbol.for('ReportRouter'),
+  CompanyUseCases: Symbol.for('CompanyUseCases'),
+  CompanyController: Symbol.for('CompanyController'),
+  CompanyRouter: Symbol.for('CompanyRouter'),
 } as const;
