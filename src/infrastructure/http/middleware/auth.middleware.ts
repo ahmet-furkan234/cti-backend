@@ -65,6 +65,12 @@ export class AuthMiddleware {
     };
   };
 
+  /** Like requirePermission, but a user may always act on their own `:id` record. */
+  requirePermissionOrSelf = (...keys: string[]): RequestHandler => {
+    const need = this.requirePermission(...keys);
+    return (req, res, next) => (req.auth?.userId === req.params.id ? next() : need(req, res, next));
+  };
+
   /** Global system operations are available only in the main platform company scope. */
   requirePlatform: RequestHandler = (req, res, next) => {
     if (req.auth?.platform) return next();

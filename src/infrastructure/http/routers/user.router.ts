@@ -19,6 +19,7 @@ export class UserRouter {
   ) {
     const r = this.router;
     const need = this.auth.requirePermission;
+    const needOrSelf = this.auth.requirePermissionOrSelf;
     r.use(this.auth.authenticate);
 
     r.get('/', need(P.USER_READ), check({ query: S.listUsersQuery }), wrap(async (req, res) => {
@@ -30,7 +31,7 @@ export class UserRouter {
     r.post('/', need(P.USER_CREATE), check({ body: S.createUserBody }), wrap(async (req, res) => {
       res.status(201).json(await this.c.create(actorOf(req), valid(req, { body: S.createUserBody }).body));
     }));
-    r.get('/:id', need(P.USER_READ), check({ params: S.idParams }), wrap(async (req, res) => {
+    r.get('/:id', needOrSelf(P.USER_READ), check({ params: S.idParams }), wrap(async (req, res) => {
       res.json(await this.c.get(valid(req, { params: S.idParams }).params.id));
     }));
     r.patch('/:id', need(P.USER_UPDATE), check({ params: S.idParams, body: S.updateUserBody }), wrap(async (req, res) => {
@@ -45,7 +46,7 @@ export class UserRouter {
       const v = valid(req, { params: S.idParams, body: S.overridesBody });
       res.json(await this.c.setOverrides(actorOf(req), v.params.id, v.body.overrides));
     }));
-    r.get('/:id/effective-permissions', need(P.USER_READ), check({ params: S.idParams }), wrap(async (req, res) => {
+    r.get('/:id/effective-permissions', needOrSelf(P.USER_READ), check({ params: S.idParams }), wrap(async (req, res) => {
       res.json(await this.c.effective(valid(req, { params: S.idParams }).params.id));
     }));
     r.post('/:id/reset-password', need(P.USER_RESET_PASSWORD), check({ params: S.idParams }), wrap(async (req, res) => {
