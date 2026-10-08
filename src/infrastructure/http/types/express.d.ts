@@ -11,6 +11,8 @@ declare namespace Express {
       permissions: string[];
       /** the company the request works in */
       companyId: string;
+      /** true only while the request is scoped to the main platform company */
+      platform: boolean;
       /** the company the user belongs to; differs from companyId while a platform user works inside another company */
       homeCompanyId: string;
     };

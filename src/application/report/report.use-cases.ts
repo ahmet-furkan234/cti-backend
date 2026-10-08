@@ -54,6 +54,6 @@ export class ReportUseCases {
     if (!run) throw new NotFoundException(Entity.report);
     const content = await this.repo.content(id);
     if (run.status !== 'ready' || !content) throw new InvalidStateException(Errors.reportNotReady);
-    return { filename: `${run.template}${run.scope ? `-${run.scope}` : ''}-${run.createdAt.toISOString().slice(0, 10)}.csv`, content };
+    return { filename: await this.service.filename(run), content };
   }
 }

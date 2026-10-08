@@ -9,6 +9,7 @@ import { InvalidValueException } from '../../../domain/common/exceptions.js';
 import type { Database } from '../client.js';
 import { cve } from '../schema/index.js';
 import { Errors } from '../../../shared/strings.js';
+import { tenant } from '../../../shared/tenant.js';
 
 
 const SORT_COLUMNS = {
@@ -56,6 +57,13 @@ export class CveRepository implements ICveRepository {
     if (q.vendor && q.product) c.push(sql`${cve.affected} @> ARRAY[${`${q.vendor.toLowerCase()}:${q.product.toLowerCase()}`}]::text[]`);
     else if (q.vendor) c.push(sql`${cve.vendors} @> ARRAY[${q.vendor.toLowerCase()}]::text[]`);
     if (q.cwe) c.push(sql`${cve.cwe} @> ARRAY[${q.cwe.toUpperCase()}]::text[]`);
+    if (q.assetScope) {
+      const narrow: SQL[] = [];
+      if (q.assetScope.exposed) narrow.push(sql`a.exposed`);
+      if (q.assetScope.env) narrow.push(sql`a.env = ${q.assetScope.env}`);
+      c.push(sql`exists (select 1 from asset_vulns av join assets a on a.id = av.asset_id
+        where av.cve_id = ${cve.id} and a.company_id = ${tenant.id()} and av.status in ('open', 'in_progress')${narrow.length ? sql` and ${sql.join(narrow, sql` and `)}` : sql``})`);
+    }
     return c.length ? and(...c) : undefined;
   }
 
@@ -88,8 +96,10 @@ export class CveRepository implements ICveRepository {
     const hasMore = rows.length > q.limit;
     const page = hasMore ? rows.slice(0, q.limit) : rows;
     const last = page[page.length - 1];
+    const counts = q.assetCounts && page.length ? await this.assetCounts(page.map((r) => r.id)) : null;
     const items: CveListItem[] = page.map((r) => ({
       ...r,
+      ...(counts ? { affectedAssets: counts.get(r.id) ?? 0 } : {}),
       description: r.description.length > 400 ? r.description.slice(0, 400) + '…' : r.description,
       cvssSeverity: r.cvssSeverity as SeverityLevel,
       affected: r.affected.slice(0, 8),
@@ -108,6 +118,15 @@ export class CveRepository implements ICveRepository {
       result.total = t?.n ?? 0;
     }
     return result;
+  }
+
+  /** unresolved matches per CVE on the current company's assets */
+  private async assetCounts(ids: string[]): Promise<Map<string, number>> {
+    const res = await this.db.execute(sql`select av.cve_id, count(distinct av.asset_id)::int as n
+      from asset_vulns av join assets a on a.id = av.asset_id
+      where a.company_id = ${tenant.id()} and av.status in ('open', 'in_progress') and av.cve_id = any(${sql`ARRAY[${sql.join(ids.map((i) => sql`${i}`), sql`, `)}]::text[]`})
+      group by av.cve_id`);
+    return new Map(((res as unknown as { rows: { cve_id: string; n: number }[] }).rows).map((r) => [r.cve_id, Number(r.n)]));
   }
 
   async findById(id: string): Promise<Cve | null> {

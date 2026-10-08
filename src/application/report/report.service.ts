@@ -20,8 +20,12 @@ export class ReportService {
   /** Builds the CSV of an already-created run; failures are stored on the run instead of thrown. */
   async build(run: Run, periodDays = 30): Promise<string | null> {
     try {
+      const company = await this.companyName();
+      const generatedAt = new Date().toISOString();
       const table = await this.repo.data(run.template, run.scope, periodDays);
-      const content = toCsv(table.header, table.rows);
+      // Every exported row carries its company and generation time. This keeps downloaded files
+      // self-identifying when several subsidiaries' reports are stored in the same folder.
+      const content = toCsv(['company', 'generated_at', ...table.header], table.rows.map((row) => [company, generatedAt, ...row]));
       await this.repo.finishRun(run.id, { status: 'ready', content });
       return content;
     } catch (err) {
@@ -36,10 +40,11 @@ export class ReportService {
     if (schedule.recipients.length === 0) return false;
     const channel = (await this.alerts.channels()).find((c) => c.kind === 'smtp');
     if (!channel) return false;
-    const name = `${schedule.template}${schedule.scope ? `-${schedule.scope}` : ''}-${new Date().toISOString().slice(0, 10)}.csv`;
+    const company = await this.companyName();
+    const name = this.fileName(company, schedule.template, schedule.scope, new Date());
     try {
       await this.dispatcher.send(channel, {
-        subject: `[CTI] ${schedule.template} report`, text: 'The report is attached.', to: schedule.recipients.join(', '),
+        subject: `[CTI] ${company} · ${schedule.template} report`, text: `${company} şirketine ait rapor ektedir.`, to: schedule.recipients.join(', '),
         attachments: [{ filename: name, content: csv }],
       });
       return true;
@@ -47,6 +52,19 @@ export class ReportService {
       this.logger.warn({ err }, 'report e-mail failed');
       return false;
     }
+  }
+
+  async filename(run: Pick<Run, 'template' | 'scope' | 'createdAt'>): Promise<string> {
+    return this.fileName(await this.companyName(), run.template, run.scope, run.createdAt);
+  }
+
+  private async companyName(): Promise<string> {
+    return (await this.companies.findById(tenant.id()))?.name ?? 'company';
+  }
+
+  private fileName(company: string, template: string, scope: string | null, at: Date): string {
+    const slug = (value: string) => value.normalize('NFKD').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'company';
+    return `${slug(company)}-${slug(template)}${scope ? `-${slug(scope)}` : ''}-${at.toISOString().slice(0, 10)}.csv`;
   }
 
   /** Runs every enabled schedule whose latest slot has not produced a report yet. */

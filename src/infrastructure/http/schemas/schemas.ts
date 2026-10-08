@@ -84,6 +84,11 @@ export const searchCvesQuery = z
     vendor: z.string().trim().max(100).optional(),
     product: z.string().trim().max(100).optional(),
     cwe: z.string().trim().max(20).optional(),
+    /** needs asset:read; see CveRouter */
+    assets: z.enum(['affecting']).optional(),
+    assetExposed: bool.optional(),
+    assetEnv: z.string().trim().max(30).optional(),
+    assetCounts: bool.optional(),
     sort: z.enum(['published', 'modified', 'cvss', 'epss']).default('published'),
     order: z.enum(['asc', 'desc']).default('desc'),
     limit: z.coerce.number().int().min(1).max(100).default(25),

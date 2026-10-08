@@ -21,7 +21,14 @@ export class CveRouter {
     const r = this.router;
     r.use(this.auth.authenticate);
     r.get('/', this.auth.requirePermission(P.CVE_READ), check({ query: S.searchCvesQuery }), wrap(async (req, res) => {
-      res.json(await this.c.search(valid(req, { query: S.searchCvesQuery }).query));
+      const { assets, assetExposed, assetEnv, assetCounts, ...query } = valid(req, { query: S.searchCvesQuery }).query;
+      // What a company's own assets are exposed to is only for people who may see the inventory.
+      const inventory = req.auth!.permissions.includes(P.ASSET_READ);
+      res.json(await this.c.search({
+        ...query,
+        ...(inventory && assets ? { assetScope: { exposed: assetExposed, env: assetEnv || undefined } } : {}),
+        ...(inventory && assetCounts ? { assetCounts: true } : {}),
+      }));
     }));
     // Registered before '/:id' so "stats" is not parsed as a CVE id.
     r.get('/stats', this.auth.requirePermission(P.DASHBOARD_VIEW), wrap(async (_req, res) => {

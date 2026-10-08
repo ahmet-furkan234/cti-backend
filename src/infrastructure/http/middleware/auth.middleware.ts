@@ -49,7 +49,7 @@ export class AuthMiddleware {
         companyId = target.id;
         platform = target.isPlatform;
       }
-      req.auth = { userId: claims.sub, email: access.email, permissions: access.permissions, companyId, homeCompanyId: access.companyId };
+      req.auth = { userId: claims.sub, email: access.email, permissions: access.permissions, companyId, platform, homeCompanyId: access.companyId };
       tenant.run({ companyId, platform }, () => next());
     } catch (err) {
       next(err);
@@ -63,5 +63,11 @@ export class AuthMiddleware {
       if (keys.some((k) => held.includes(k))) return next();
       res.status(403).json(errorBody(Errors.forbiddenRequired(keys)));
     };
+  };
+
+  /** Global system operations are available only in the main platform company scope. */
+  requirePlatform: RequestHandler = (req, res, next) => {
+    if (req.auth?.platform) return next();
+    res.status(403).json(errorBody(Errors.platformOnly));
   };
 }

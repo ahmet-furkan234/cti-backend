@@ -56,6 +56,10 @@ export interface SearchCvesQuery {
   vendor?: string | undefined;
   product?: string | undefined;
   cwe?: string | undefined;
+  /** only CVEs with an unresolved match on the current company's assets, optionally narrowed to some of them */
+  assetScope?: { exposed?: boolean | undefined; env?: string | undefined } | undefined;
+  /** add how many of the company's assets each CVE affects */
+  assetCounts?: boolean | undefined;
   sort: CveSort;
   order: 'asc' | 'desc';
   limit: number;
@@ -73,6 +77,8 @@ export interface CveListItem {
   isKev: boolean;
   epss: number;
   affected: string[];
+  /** unresolved matches on the current company's assets; only present when asked for */
+  affectedAssets?: number;
 }
 
 export interface SearchCvesResult {

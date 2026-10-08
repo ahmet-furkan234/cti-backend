@@ -19,6 +19,7 @@ export class SyncRouter {
   ) {
     const r = this.router;
     r.use(this.auth.authenticate);
+    r.use(this.auth.requirePlatform);
     r.get('/', this.auth.requirePermission(P.SYNC_VIEW), wrap(async (_req, res) => {
       res.json(await this.c.status());
     }));
