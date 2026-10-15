@@ -55,6 +55,7 @@ import { ListAuditLogUseCase } from '../../application/audit/list-audit-log.use-
 import { GetCveStatsUseCase, GetCveUseCase, SearchCvesUseCase } from '../../application/cve/use-cases/cve.use-cases.js';
 import { GetSyncStatusUseCase, RequestSyncUseCase } from '../../application/sync/use-cases/sync-status.use-cases.js';
 import { ProductCatalogService } from '../../application/vuln/product-catalog.service.js';
+import { ProductVersionsService } from '../../application/vuln/product-versions.service.js';
 import { MatchAssetsService } from '../../application/vuln/match-assets.service.js';
 import {
   CreateAssetUseCase, DeleteAssetUseCase, GetAssetUseCase, ImportAssetsUseCase, ListAssetsUseCase, ListImportsUseCase, UpdateAssetUseCase, CheckSoftwareUseCase, SoftwareCatalogUseCases,
@@ -122,6 +123,7 @@ export function buildContainer(): BuiltContainer {
   container.bind(TYPES.AuditService).to(AuditService);
   container.bind(TYPES.SessionService).to(SessionService);
   container.bind(TYPES.ProductCatalogService).to(ProductCatalogService);
+  container.bind(TYPES.ProductVersionsService).to(ProductVersionsService);
   container.bind(TYPES.MatchAssetsService).to(MatchAssetsService);
   container.bind(TYPES.AlertEvaluatorService).to(AlertEvaluatorService);
   container.bind(TYPES.AlertUseCases).to(AlertUseCases);

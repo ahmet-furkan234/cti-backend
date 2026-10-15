@@ -8,6 +8,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { toComponent } from '../../domain/vuln/components.js';
 import type { ProductSuggestion } from '../../domain/vuln/product-index.js';
 import { ProductCatalogService } from '../vuln/product-catalog.service.js';
+import type { ProductVersionsService } from '../vuln/product-versions.service.js';
 import { MatchAssetsService } from '../vuln/match-assets.service.js';
 import type { IVulnRepository } from '../../domain/vuln/vuln.repository.interface.js';
 import type { ILogger } from '../ports/ports.js';
@@ -286,6 +287,7 @@ export class CheckSoftwareUseCase {
 export class SoftwareCatalogUseCases {
   constructor(
     @inject(TYPES.ProductCatalogService) private readonly catalog: ProductCatalogService,
+    @inject(TYPES.ProductVersionsService) private readonly versionList: ProductVersionsService,
     @inject(TYPES.IVulnRepository) private readonly vulns: IVulnRepository,
     @inject(TYPES.MatchAssetsService) private readonly matcher: MatchAssetsService,
     @inject(TYPES.AuditService) private readonly audit: AuditService,
@@ -295,6 +297,10 @@ export class SoftwareCatalogUseCases {
   async search(q: string) {
     // Opened empty, the picker is a browsable list of the ~200 products the CVEs name most; typing narrows it.
     return { items: (await this.catalog.get()).search(q, q.trim() ? 20 : 200) };
+  }
+
+  async versions(product: string) {
+    return { items: await this.versionList.versions(product) };
   }
 
   aliases() {

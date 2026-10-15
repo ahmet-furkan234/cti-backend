@@ -29,6 +29,7 @@ export class InventoryController {
   import(actor: Actor, cmd: ImportCommand) { return this.import_.execute(actor, cmd); }
   checkSoftware(items: { product: string; version?: string | null }[]) { return this.check_.execute(items); }
   searchProducts(q: string) { return this.catalog_.search(q); }
+  productVersions(product: string) { return this.catalog_.versions(product); }
   aliases() { return this.catalog_.aliases(); }
   createAlias(actor: Actor, body: { name: string; pair: string }) { return this.catalog_.createAlias(actor, body); }
   deleteAlias(actor: Actor, id: string) { return this.catalog_.deleteAlias(actor, id); }

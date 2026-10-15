@@ -31,6 +31,7 @@ export const TYPES = {
   CatalogBootstrapService: Symbol.for('CatalogBootstrapService'),
   MatchAssetsService: Symbol.for('MatchAssetsService'),
   ProductCatalogService: Symbol.for('ProductCatalogService'),
+  ProductVersionsService: Symbol.for('ProductVersionsService'),
   AlertEvaluatorService: Symbol.for('AlertEvaluatorService'),
   AlertUseCases: Symbol.for('AlertUseCases'),
   IntelUseCases: Symbol.for('IntelUseCases'),

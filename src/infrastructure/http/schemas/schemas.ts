@@ -295,6 +295,7 @@ export const checkSoftwareBody = z.object({
 });
 
 export const productSearchQuery = z.object({ q: z.string().trim().max(100).default('') });
+export const productVersionsQuery = z.object({ product: z.string().trim().min(1).max(100) });
 export const aliasBody = z.object({
   name: short(100).min(2),
   pair: z.string().trim().toLowerCase().regex(/^[^:\s]+:[^:\s]+$/, 'expected vendor:product'),

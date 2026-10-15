@@ -37,6 +37,9 @@ export class InventoryRouter {
     r.get('/software/products', read, check({ query: S.productSearchQuery }), wrap(async (req, res) => {
       res.json(await this.c.searchProducts(valid(req, { query: S.productSearchQuery }).query.q));
     }));
+    r.get('/software/versions', read, check({ query: S.productVersionsQuery }), wrap(async (req, res) => {
+      res.json(await this.c.productVersions(valid(req, { query: S.productVersionsQuery }).query.product));
+    }));
     r.get('/software/aliases', read, wrap(async (_req, res) => {
       res.json(await this.c.aliases());
     }));
