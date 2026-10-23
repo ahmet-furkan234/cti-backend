@@ -8,6 +8,5 @@ export * from './cve.table.js';
 export * from './inventory.tables.js';
 export * from './vuln.tables.js';
 export * from './alert.tables.js';
-export * from './intel.tables.js';
 export * from './report.tables.js';
 export * from './software-alias.table.js';

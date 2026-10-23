@@ -20,10 +20,6 @@ import { AlertEvaluatorService } from '../../application/alerts/alert-evaluator.
 import { AlertUseCases } from '../../application/alerts/alert.use-cases.js';
 import { AlertController } from '../../infrastructure/http/controllers/alert.controller.js';
 import { AlertRouter } from '../../infrastructure/http/routers/alert.router.js';
-import { IntelRepository } from '../../infrastructure/database/repositories/intel.repository.js';
-import { IntelUseCases } from '../../application/intel/intel.use-cases.js';
-import { IntelController } from '../../infrastructure/http/controllers/intel.controller.js';
-import { IntelRouter } from '../../infrastructure/http/routers/intel.router.js';
 import { ReportRepository } from '../../infrastructure/database/repositories/report.repository.js';
 import { ReportService } from '../../application/report/report.service.js';
 import { ReportUseCases } from '../../application/report/report.use-cases.js';
@@ -113,7 +109,6 @@ export function buildContainer(): BuiltContainer {
   container.bind(TYPES.IAssetRepository).to(AssetRepository);
   container.bind(TYPES.IVulnRepository).to(VulnRepository);
   container.bind(TYPES.IAlertRepository).to(AlertRepository);
-  container.bind(TYPES.IIntelRepository).to(IntelRepository);
   container.bind(TYPES.IReportRepository).to(ReportRepository);
   container.bind(TYPES.ICompanyRepository).to(CompanyRepository);
   container.bind(TYPES.IChannelDispatcher).to(ChannelDispatcher);
@@ -127,7 +122,6 @@ export function buildContainer(): BuiltContainer {
   container.bind(TYPES.MatchAssetsService).to(MatchAssetsService);
   container.bind(TYPES.AlertEvaluatorService).to(AlertEvaluatorService);
   container.bind(TYPES.AlertUseCases).to(AlertUseCases);
-  container.bind(TYPES.IntelUseCases).to(IntelUseCases);
   container.bind(TYPES.ReportService).to(ReportService);
   container.bind(TYPES.ReportUseCases).to(ReportUseCases);
 
@@ -201,8 +195,6 @@ export function buildContainer(): BuiltContainer {
   container.bind(TYPES.VulnRouter).to(VulnRouter);
   container.bind(TYPES.AlertController).to(AlertController);
   container.bind(TYPES.AlertRouter).to(AlertRouter);
-  container.bind(TYPES.IntelController).to(IntelController);
-  container.bind(TYPES.IntelRouter).to(IntelRouter);
   container.bind(TYPES.ReportController).to(ReportController);
   container.bind(TYPES.ReportRouter).to(ReportRouter);
   container.bind(TYPES.SyncController).to(SyncController);

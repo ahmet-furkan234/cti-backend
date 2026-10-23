@@ -211,64 +211,6 @@ const ruleFields = {
 export const ruleBody = z.object(ruleFields);
 export const updateRuleBody = z.object(ruleFields).partial();
 
-// ---- intel
-const iocType = z.enum(['ipv4', 'ipv6', 'cidr', 'domain', 'url', 'email', 'sha256', 'sha1', 'md5']);
-const lower = (max: number) => z.string().trim().toLowerCase().min(1).max(max);
-const watchlistFields = {
-  name: short(100).min(1),
-  vendors: z.array(lower(100)).max(50),
-  products: z.array(lower(100)).max(50),
-  tag: short(50),
-  minCvss: z.number().min(0).max(10),
-  kevOnly: z.boolean(),
-  minEpss: z.number().int().min(0).max(100),
-  channelId: uuid.nullable(),
-  enabled: z.boolean(),
-};
-export const watchlistBody = z.object(watchlistFields);
-export const updateWatchlistBody = z.object(watchlistFields).partial();
-
-const IPV4_RE = /^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$/;
-const IOC_SHAPE: Record<string, (v: string) => boolean> = {
-  ipv4: (v) => IPV4_RE.test(v),
-  ipv6: (v) => /^[0-9a-f:]+$/i.test(v) && v.includes(':'),
-  cidr: (v) => { const [ip, bits] = v.split('/'); return !!ip && IPV4_RE.test(ip) && /^\d{1,2}$/.test(bits ?? '') && Number(bits) <= 32; },
-  domain: (v) => /^([a-z0-9-]+\.)+[a-z]{2,}$/i.test(v),
-  url: (v) => /^(hxxps?|https?|ftp):\/\/\S+$/i.test(v),
-  email: (v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v),
-  sha256: (v) => /^[a-f0-9]{64}$/i.test(v),
-  sha1: (v) => /^[a-f0-9]{40}$/i.test(v),
-  md5: (v) => /^[a-f0-9]{32}$/i.test(v),
-};
-export const addIocsBody = z.object({
-  items: z
-    .array(
-      z.object({
-        type: iocType,
-        value: z.string().trim().min(1).max(2000),
-        source: short(100).default('Manual'),
-        confidence: z.number().int().min(0).max(100).default(60),
-        expiresAt: z.coerce.date().nullish().transform((v) => v ?? null),
-      }).refine((i) => IOC_SHAPE[i.type]!(i.value), { message: 'value does not match the indicator type', path: ['value'] }),
-    )
-    .min(1)
-    .max(5000),
-});
-export const listIocsQuery = z.object({
-  q: short(200).optional(),
-  types: z.string().transform((s) => s.split(',').map((v) => v.trim()).filter(Boolean)).pipe(z.array(iocType).max(9)).optional(),
-  onlyMatches: bool.optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(100),
-  offset: z.coerce.number().int().min(0).default(0),
-});
-
-export const intelFindingsQuery = z.object({
-  days: z.coerce.number().int().min(1).max(90).default(7),
-  watchlistId: uuid.optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(100),
-});
-export const intelDaysQuery = z.object({ days: z.coerce.number().int().min(1).max(90).default(7) });
-
 // ---- reports
 const template = z.enum(['exec', 'kev', 'sla', 'owner']);
 const formats = z.array(z.enum(['csv'])).min(1).max(1);

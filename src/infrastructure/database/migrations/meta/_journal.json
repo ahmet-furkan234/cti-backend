@@ -78,6 +78,13 @@
       "when": 1792777310402,
       "tag": "0010_alert_asset_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792777310403,
+      "tag": "0011_remove_threat_intelligence",
+      "breakpoints": true
     }
   ]
 }

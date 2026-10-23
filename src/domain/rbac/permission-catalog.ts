@@ -23,8 +23,6 @@ export const PERMISSIONS = {
   VULN_UPDATE:         'vuln:update',
   ALERT_READ:          'alert:read',
   ALERT_MANAGE:        'alert:manage',
-  INTEL_READ:          'intel:read',
-  INTEL_MANAGE:        'intel:manage',
   REPORT_READ:         'report:read',
   REPORT_MANAGE:       'report:manage',
   COMPANY_READ:        'company:read',
@@ -60,8 +58,6 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
   { key: PERMISSIONS.VULN_UPDATE,         module: 'vuln',      description: 'Change vulnerability status and re-run matching' },
   { key: PERMISSIONS.ALERT_READ,          module: 'alert',     description: 'View alert rules, channels and history' },
   { key: PERMISSIONS.ALERT_MANAGE,        module: 'alert',     description: 'Manage alert rules and channels' },
-  { key: PERMISSIONS.INTEL_READ,          module: 'intel',     description: 'View watchlists and indicators' },
-  { key: PERMISSIONS.INTEL_MANAGE,        module: 'intel',     description: 'Manage watchlists and indicators' },
   { key: PERMISSIONS.REPORT_READ,         module: 'report',    description: 'View and download reports' },
   { key: PERMISSIONS.REPORT_MANAGE,       module: 'report',    description: 'Schedule and generate reports' },
   { key: PERMISSIONS.COMPANY_READ,         module: 'company',   description: 'List the companies on the platform' },
@@ -76,11 +72,10 @@ export const isPlatformOnlyPermission = (key: string) => PLATFORM_ONLY_PERMISSIO
 /** What a company's own administrator holds: everything except platform management and running the global CVE sync. */
 const COMPANY_ADMIN: PermissionKey[] = ALL.filter((k) => !isPlatformOnlyPermission(k) && k !== PERMISSIONS.SYNC_RUN);
 
-/** Day-to-day security operations: inventory, vulnerabilities, alerts, intel and reports. */
+/** Day-to-day security operations: inventory, vulnerabilities, alerts and reports. */
 const OPERATIONS: PermissionKey[] = [
   PERMISSIONS.ASSET_READ, PERMISSIONS.ASSET_WRITE, PERMISSIONS.ASSET_DELETE, PERMISSIONS.VULN_READ, PERMISSIONS.VULN_UPDATE,
-  PERMISSIONS.ALERT_READ, PERMISSIONS.ALERT_MANAGE, PERMISSIONS.INTEL_READ, PERMISSIONS.INTEL_MANAGE,
-  PERMISSIONS.REPORT_READ, PERMISSIONS.REPORT_MANAGE,
+  PERMISSIONS.ALERT_READ, PERMISSIONS.ALERT_MANAGE, PERMISSIONS.REPORT_READ, PERMISSIONS.REPORT_MANAGE,
 ];
 
 export interface SystemRoleDefinition {
@@ -118,7 +113,7 @@ export const SYSTEM_ROLES: SystemRoleDefinition[] = [
     description: 'Read-only',
     permissions: [
       PERMISSIONS.CVE_READ, PERMISSIONS.DASHBOARD_VIEW, PERMISSIONS.ASSET_READ, PERMISSIONS.VULN_READ,
-      PERMISSIONS.ALERT_READ, PERMISSIONS.INTEL_READ, PERMISSIONS.REPORT_READ,
+      PERMISSIONS.ALERT_READ, PERMISSIONS.REPORT_READ,
     ],
   },
 ];

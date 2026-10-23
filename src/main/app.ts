@@ -16,7 +16,6 @@ import type { CveRouter } from '../infrastructure/http/routers/cve.router.js';
 import type { InventoryRouter } from '../infrastructure/http/routers/inventory.router.js';
 import type { VulnRouter } from '../infrastructure/http/routers/vuln.router.js';
 import type { AlertRouter } from '../infrastructure/http/routers/alert.router.js';
-import type { IntelRouter } from '../infrastructure/http/routers/intel.router.js';
 import type { ReportRouter } from '../infrastructure/http/routers/report.router.js';
 import type { RoleRouter } from '../infrastructure/http/routers/role.router.js';
 import type { SyncRouter } from '../infrastructure/http/routers/sync.router.js';
@@ -64,7 +63,6 @@ export function createApp(container: Container): Express {
   v1.use('/assets', container.get<InventoryRouter>(TYPES.InventoryRouter).router);
   v1.use('/vulns', container.get<VulnRouter>(TYPES.VulnRouter).router);
   v1.use('/alerts', container.get<AlertRouter>(TYPES.AlertRouter).router);
-  v1.use('/intel', container.get<IntelRouter>(TYPES.IntelRouter).router);
   v1.use('/reports', container.get<ReportRouter>(TYPES.ReportRouter).router);
   v1.use('/sync', container.get<SyncRouter>(TYPES.SyncRouter).router);
   app.use('/api/v1', v1);
