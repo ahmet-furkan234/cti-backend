@@ -44,6 +44,13 @@ export const cve = pgTable(
     index('cve_cvss_idx').on(t.cvssScore.desc(), t.id.desc()),
     index('cve_epss_idx').on(t.epss.desc(), t.id.desc()),
     index('cve_kev_idx').on(t.kevAdded.desc(), t.id.desc()).where(sql`${t.isKev}`),
+    // "KEV only" is the most common filter; one tiny partial index per sort option keeps those lists off the heap sort.
+    index('cve_kev_published_idx').on(t.published.desc(), t.id.desc()).where(sql`${t.isKev}`),
+    index('cve_kev_modified_idx').on(t.lastModified.desc(), t.id.desc()).where(sql`${t.isKev}`),
+    index('cve_kev_cvss_idx').on(t.cvssScore.desc(), t.id.desc()).where(sql`${t.isKev}`),
+    index('cve_kev_epss_idx').on(t.epss.desc(), t.id.desc()).where(sql`${t.isKev}`),
+    // Narrow index so the dashboard's severity counts are index-only scans instead of a pass over the 1.2 GB heap.
+    index('cve_severity_idx').on(t.cvssSeverity),
     index('cve_affected_idx').using('gin', t.affected),
     index('cve_vendors_idx').using('gin', t.vendors),
     index('cve_cwe_idx').using('gin', t.cwe),

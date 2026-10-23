@@ -2,6 +2,21 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    # Docker's default /dev/shm is 64 MB: parallel queries and VACUUM fail with "No space left on device" above that.
+    shm_size: 256mb
+    # Sized for the ~2.5 GB the Docker VM offers (the cve table + indexes are ~2 GB); stock Postgres uses 128 MB buffers.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=384MB
+      - -c
+      - effective_cache_size=1536MB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - random_page_cost=1.1
     environment:
       POSTGRES_USER: cti
       POSTGRES_PASSWORD: cti_dev_password

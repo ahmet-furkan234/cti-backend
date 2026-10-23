@@ -19,6 +19,8 @@ const SORT_COLUMNS = {
   epss: { col: cve.epss, kind: 'num' },
 } as const;
 
+const STATS_TTL_MS = 60_000;
+
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&');
 
 function decodeCursor(cursor: string): { v: string | number; id: string } {
@@ -83,6 +85,11 @@ export class CveRepository implements ICveRepository {
       ? sql`${sort.col} desc nulls last, ${cve.id} desc nulls last`
       : sql`${sort.col} asc nulls first, ${cve.id} asc nulls first`;
 
+    // The total is independent of the page, so it runs alongside the page query instead of after it.
+    // Drizzle builders are lazy, hence execute(); the no-op catch keeps a failing page query from leaving this one unhandled.
+    const totalQuery = q.includeTotal ? this.db.select({ n: count() }).from(cve).where(where).execute() : null;
+    totalQuery?.catch(() => undefined);
+
     const rows = await this.db
       .select({
         id: cve.id, published: cve.published, lastModified: cve.lastModified, description: cve.description,
@@ -113,8 +120,8 @@ export class CveRepository implements ICveRepository {
     }
 
     const result: SearchCvesResult = { items, nextCursor };
-    if (q.includeTotal) {
-      const [t] = await this.db.select({ n: count() }).from(cve).where(where);
+    if (totalQuery) {
+      const [t] = await totalQuery;
       result.total = t?.n ?? 0;
     }
     return result;
@@ -142,15 +149,28 @@ export class CveRepository implements ICveRepository {
     };
   }
 
-  async stats(): Promise<CveStats> {
+  /**
+   * Dashboard numbers are global (not per company) and the underlying data changes hourly at most, so one
+   * computation is shared by every request for a minute. Concurrent callers join the in-flight computation.
+   */
+  private statsCache: { at: number; value: Promise<CveStats> } | null = null;
+
+  stats(): Promise<CveStats> {
+    const cached = this.statsCache;
+    if (cached && Date.now() - cached.at < STATS_TTL_MS) return cached.value;
+    const value = this.computeStats();
+    this.statsCache = { at: Date.now(), value };
+    // A failed computation must not be served for a minute.
+    value.catch(() => { if (this.statsCache?.value === value) this.statsCache = null; });
+    return value;
+  }
+
+  private async computeStats(): Promise<CveStats> {
     const db = this.db;
-    const [totals, sev, perDay, topCwe, topVendors, newestKev] = await Promise.all([
-      db.execute<{ total: string; kev: string; critical: string; last24h: string }>(sql`
-        select count(*) as total,
-               count(*) filter (where is_kev) as kev,
-               count(*) filter (where cvss_severity = 4) as critical,
-               count(*) filter (where published > now() - interval '24 hours') as last24h
-        from cve`),
+    // total / critical come from the severity breakdown: each is an index-only scan, none touches the heap.
+    const [kevCount, last24h, sev, perDay, topCwe, topVendors, newestKev] = await Promise.all([
+      db.execute<{ n: string }>(sql`select count(*) as n from cve where is_kev`),
+      db.execute<{ n: string }>(sql`select count(*) as n from cve where published > now() - interval '24 hours'`),
       db.execute<{ severity: number; n: string }>(sql`select cvss_severity as severity, count(*) as n from cve group by 1 order by 1`),
       db.execute<{ day: string; n: string }>(sql`
         select to_char(date_trunc('day', published), 'YYYY-MM-DD') as day, count(*) as n
@@ -166,10 +186,13 @@ export class CveRepository implements ICveRepository {
         .from(cve).where(eq(cve.isKev, true))
         .orderBy(sql`${cve.kevAdded} desc nulls last, ${cve.id} desc nulls last`).limit(10),
     ]);
-    const t = totals.rows[0]!;
+    const bySeverity = sev.rows.map((r) => ({ severity: r.severity as SeverityLevel, count: Number(r.n) }));
     return {
-      total: Number(t.total), kevCount: Number(t.kev), criticalCount: Number(t.critical), addedLast24h: Number(t.last24h),
-      severityDistribution: sev.rows.map((r) => ({ severity: r.severity as SeverityLevel, count: Number(r.n) })),
+      total: bySeverity.reduce((s, r) => s + r.count, 0),
+      kevCount: Number(kevCount.rows[0]?.n ?? 0),
+      criticalCount: bySeverity.find((r) => r.severity === 4)?.count ?? 0,
+      addedLast24h: Number(last24h.rows[0]?.n ?? 0),
+      severityDistribution: bySeverity,
       perDay: perDay.rows.map((r) => ({ day: r.day, count: Number(r.n) })),
       topCwe: topCwe.rows.map((r) => ({ cwe: r.cwe, count: Number(r.n) })),
       topVendors: topVendors.rows.map((r) => ({ vendor: r.vendor, count: Number(r.n) })),
