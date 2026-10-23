@@ -54,6 +54,7 @@ export class AlertRepository implements IAlertRepository {
         and l.at > now() - interval '30 days') as fired30 from alert_rules r where r.company_id = ${tenant.id()}${where ? sql` and ${where}` : sql``} order by r.created_at desc`);
     return rowsOf<Record<string, unknown>>(res).map((r) => ({
       id: r['id'] as string, name: r['name'] as string, trigger: r['trigger'] as Rule['trigger'], envs: r['envs'] as string[],
+      assetIds: (r['asset_ids'] as string[] | undefined) ?? [],
       minRisk: Number(r['min_risk']), exposedOnly: r['exposed_only'] as boolean, tag: r['tag'] as string,
       channelIds: r['channel_ids'] as string[], throttle: r['throttle'] as Rule['throttle'], enabled: r['enabled'] as boolean,
       lastFiredAt: r['last_fired_at'] ? new Date(r['last_fired_at'] as string) : null, evaluatedAt: new Date(r['evaluated_at'] as string),
@@ -98,6 +99,7 @@ export class AlertRepository implements IAlertRepository {
 
   private ruleFilters(rule: Rule): SQL[] {
     const c: SQL[] = [sql`a.company_id = ${tenant.id()}`];
+    if (rule.assetIds?.length) c.push(sql`a.id = any(${pgUuids(rule.assetIds)})`);
     if (rule.envs.length) c.push(sql`a.env in (${sql.join(rule.envs.map((e) => sql`${e}`), sql`, `)})`);
     if (rule.exposedOnly) c.push(sql`a.exposed`);
     if (rule.tag.trim()) c.push(sql`${rule.tag.trim()} = any(a.tags)`);

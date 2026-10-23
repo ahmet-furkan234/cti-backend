@@ -18,6 +18,7 @@ export interface Rule {
   id: string;
   name: string;
   trigger: Trigger;
+  assetIds?: string[];
   envs: string[];
   minRisk: number;
   exposedOnly: boolean;

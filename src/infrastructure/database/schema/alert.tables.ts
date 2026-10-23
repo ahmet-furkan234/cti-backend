@@ -20,6 +20,7 @@ export const alertRules = pgTable('alert_rules', {
   companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   trigger: text('trigger', { enum: ['kev', 'critical', 'sla', 'epss', 'sync', 'digest'] }).notNull(),
+  assetIds: uuid('asset_ids').array().notNull().default(sql`'{}'::uuid[]`),
   envs: text('envs').array().notNull().default(sql`'{}'::text[]`),
   minRisk: integer('min_risk').notNull().default(0),
   exposedOnly: boolean('exposed_only').notNull().default(false),

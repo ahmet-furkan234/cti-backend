@@ -197,6 +197,7 @@ export const updateChannelBody = z.object({
   values: z.record(z.string().max(40), z.string().max(500)).optional(),
 });
 const ruleFields = {
+  assetIds: z.array(uuid).max(500).optional(),
   name: short(150).min(1),
   trigger: z.enum(['kev', 'critical', 'sla', 'epss', 'sync', 'digest']),
   envs: z.array(short(30)).max(10),
