@@ -42,8 +42,40 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgres://cti:cti_dev_password@postgres:5432/cti
       REDIS_URL: redis://redis:6379
+      # Taken from cti-backend/.env when set there (takes precedence over the worker's own .env).
+      NVD_API_KEY: ${NVD_API_KEY:-}
     ports:
       - "4100:4100"
+
+  # REST API. Applies pending migrations on start; the browser reaches it through the frontend's /api/v1 proxy.
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    env_file: .env # JWT_ACCESS_SECRET, seed admin, ...
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgres://cti:cti_dev_password@postgres:5432/cti
+      REDIS_URL: redis://redis:6379
+      ALLOWED_ORIGINS: http://localhost:3100
+      WEB_BASE_URL: http://localhost:3100
+    ports:
+      - "4000:4000"
+
+  # Next.js UI; proxies /api/v1/* to the api service (API_URL is baked in at build time).
+  frontend:
+    build:
+      context: ../cti-frontend
+      args:
+        API_URL: http://api:4000
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3100:3100"
 
 volumes:
   cti_pg:

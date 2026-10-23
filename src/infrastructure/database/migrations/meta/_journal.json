@@ -50,6 +50,13 @@
       "when": 1791441962969,
       "tag": "0006_multi_tenant",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791445562969,
+      "tag": "0007_sync_progress",
+      "breakpoints": true
     }
   ]
 }

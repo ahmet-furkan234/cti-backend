@@ -6,7 +6,7 @@ import { RequestSyncUseCase } from './sync-status.use-cases.js';
 
 const state = (status: SyncState['status']): SyncState => ({
   source: 'kev', status, lastSuccessAt: null, lastStartedAt: null, lastFinishedAt: null,
-  lastError: null, recordsProcessed: 0, cursor: {}, runRequestedAt: null,
+  lastError: null, recordsProcessed: 0, cursor: {}, runRequestedAt: null, progress: null,
 });
 const actor = { id: 'u1', email: 'a@b.c', permissions: [], ip: null };
 
