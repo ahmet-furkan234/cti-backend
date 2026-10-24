@@ -36,7 +36,19 @@ export class AuthRouter {
     const strict = limiter(15 * 60_000, 30);
     const client = (req: import('express').Request) => ({ ip: req.ip ?? null, userAgent: req.headers['user-agent'] ?? null });
 
-    const respond = (res: import('express').Response, session: IssuedSession, extra: Record<string, unknown> = {}, status = 200) => {
+    // Native apps have no cookie jar to rely on: they send `x-client: mobile`, get the refresh token in the body
+    // and keep it in the OS keychain. Web keeps the httpOnly cookie and never sees the token.
+    const isMobile = (req: import('express').Request) => req.headers['x-client'] === 'mobile';
+    const bodyToken = (req: import('express').Request): string | undefined => {
+      const t = (req.body as { refreshToken?: unknown } | undefined)?.refreshToken;
+      return isMobile(req) && typeof t === 'string' && t.length > 0 && t.length < 512 ? t : undefined;
+    };
+
+    const respond = (req: import('express').Request, res: import('express').Response, session: IssuedSession, extra: Record<string, unknown> = {}, status = 200) => {
+      if (isMobile(req)) {
+        res.status(status).json({ accessToken: session.accessToken, expiresIn: session.expiresIn, refreshToken: session.refreshToken, refreshExpiresAt: session.refreshExpiresAt, ...extra });
+        return;
+      }
       setRefreshCookie(res, this.config, session.refreshToken, session.refreshExpiresAt);
       res.status(status).json({ accessToken: session.accessToken, expiresIn: session.expiresIn, ...extra });
     };
@@ -44,14 +56,14 @@ export class AuthRouter {
     r.post('/login', strict, check({ body: S.loginBody }), wrap(async (req, res) => {
       const b = valid(req, { body: S.loginBody }).body;
       const { userId, session } = await this.c.login({ ...b, ...client(req) });
-      respond(res, session, { user: await this.c.me(userId) });
+      respond(req, res, session, { user: await this.c.me(userId) });
     }));
 
     r.post('/refresh', limiter(60_000, 60), wrap(async (req, res) => {
-      const token = readRefreshCookie(req);
+      const token = bodyToken(req) ?? readRefreshCookie(req);
       if (!token) throw new RefreshTokenInvalidException();
       try {
-        respond(res, await this.c.refresh(token, client(req)));
+        respond(req, res, await this.c.refresh(token, client(req)));
       } catch (err) {
         clearRefreshCookie(res, this.config);
         throw err;
@@ -59,7 +71,7 @@ export class AuthRouter {
     }));
 
     r.post('/logout', wrap(async (req, res) => {
-      await this.c.logout(readRefreshCookie(req));
+      await this.c.logout(bodyToken(req) ?? readRefreshCookie(req));
       clearRefreshCookie(res, this.config);
       res.status(204).end();
     }));
@@ -81,7 +93,7 @@ export class AuthRouter {
     r.post('/register', strict, check({ body: S.registerBody }), wrap(async (req, res) => {
       const b = valid(req, { body: S.registerBody }).body;
       const { userId, session } = await this.c.register({ ...b, ...client(req) });
-      respond(res, session, { user: await this.c.me(userId) }, 201);
+      respond(req, res, session, { user: await this.c.me(userId) }, 201);
     }));
     r.get('/reset-tokens/:token', strict, check({ params: S.tokenParams }), wrap(async (req, res) => {
       res.json(await this.c.resetInfo(valid(req, { params: S.tokenParams }).params.token));

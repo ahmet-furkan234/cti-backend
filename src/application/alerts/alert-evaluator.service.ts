@@ -20,14 +20,14 @@ export class AlertEvaluatorService {
   ) {}
 
   /** Delivers one message to the given channels and records the outcome on each channel. Returns the failures. */
-  async deliver(channelIds: string[], subject: string, text: string): Promise<{ sent: Channel[]; failed: { channel: Channel; why: string }[] }> {
+  async deliver(channelIds: string[], subject: string, text: string, data?: Record<string, string>): Promise<{ sent: Channel[]; failed: { channel: Channel; why: string }[] }> {
     const sent: Channel[] = [];
     const failed: { channel: Channel; why: string }[] = [];
     for (const id of channelIds) {
       const channel = await this.repo.findChannel(id);
       if (!channel) continue;
       try {
-        await this.dispatcher.send(channel, { subject, text });
+        await this.dispatcher.send(channel, { subject, text, ...(data ? { data } : {}) });
         sent.push(channel);
         await this.repo.updateChannel(id, { status: 'healthy', problem: null, lastTestAt: new Date() });
       } catch (err) {
@@ -43,8 +43,10 @@ export class AlertEvaluatorService {
     const lines = events.slice(0, MAX_LINES).map((e) => `• ${e.line}`);
     if (events.length > MAX_LINES) lines.push(`…and ${events.length - MAX_LINES} more`);
     const text = [intro, ...lines].filter(Boolean).join('\n');
-    const { sent, failed } = await this.deliver(rule.channelIds, subject, text);
-    const assetId = events.length === 1 ? events[0]!.assetId : null;
+    const cve = events.length === 1 ? events[0]!.cveId : '';
+    const { sent, failed } = await this.deliver(rule.channelIds, subject, text, cve ? { cve } : undefined);
+    // Digest and sync events are not about one asset: their assetId is '', which the uuid log column rejects.
+    const assetId = events.length === 1 ? events[0]!.assetId || null : null;
     if (sent.length) {
       await this.repo.addLog({ ruleId: rule.id, assetId, channelIds: sent.map((c) => c.id), result: 'sent', detail: events.length === 1 ? events[0]!.line : `${events.length}: ${subject}`.slice(0, 300) });
     }

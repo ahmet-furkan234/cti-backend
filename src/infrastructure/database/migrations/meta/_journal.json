@@ -85,6 +85,13 @@
       "when": 1792777310403,
       "tag": "0011_remove_threat_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792777310404,
+      "tag": "0012_push_devices",
+      "breakpoints": true
     }
   ]
 }

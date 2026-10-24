@@ -20,6 +20,9 @@ import { AlertEvaluatorService } from '../../application/alerts/alert-evaluator.
 import { AlertUseCases } from '../../application/alerts/alert.use-cases.js';
 import { AlertController } from '../../infrastructure/http/controllers/alert.controller.js';
 import { AlertRouter } from '../../infrastructure/http/routers/alert.router.js';
+import { DeviceRouter } from '../../infrastructure/http/routers/device.router.js';
+import { FcmPushSender } from '../../infrastructure/notify/fcm-push.js';
+import { PushDeviceRepository } from '../../infrastructure/database/repositories/push-device.repository.js';
 import { ReportRepository } from '../../infrastructure/database/repositories/report.repository.js';
 import { ReportService } from '../../application/report/report.service.js';
 import { ReportUseCases } from '../../application/report/report.use-cases.js';
@@ -112,6 +115,8 @@ export function buildContainer(): BuiltContainer {
   container.bind(TYPES.IReportRepository).to(ReportRepository);
   container.bind(TYPES.ICompanyRepository).to(CompanyRepository);
   container.bind(TYPES.IChannelDispatcher).to(ChannelDispatcher);
+  container.bind(TYPES.IPushDeviceRepository).to(PushDeviceRepository);
+  container.bind(TYPES.IPushSender).to(FcmPushSender);
 
   container.bind(TYPES.EffectivePermissionService).to(EffectivePermissionService);
   container.bind(TYPES.CatalogBootstrapService).to(CatalogBootstrapService);
@@ -195,6 +200,7 @@ export function buildContainer(): BuiltContainer {
   container.bind(TYPES.VulnRouter).to(VulnRouter);
   container.bind(TYPES.AlertController).to(AlertController);
   container.bind(TYPES.AlertRouter).to(AlertRouter);
+  container.bind(TYPES.DeviceRouter).to(DeviceRouter);
   container.bind(TYPES.ReportController).to(ReportController);
   container.bind(TYPES.ReportRouter).to(ReportRouter);
   container.bind(TYPES.SyncController).to(SyncController);

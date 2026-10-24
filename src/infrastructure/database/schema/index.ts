@@ -10,3 +10,4 @@ export * from './vuln.tables.js';
 export * from './alert.tables.js';
 export * from './report.tables.js';
 export * from './software-alias.table.js';
+export * from './push.table.js';

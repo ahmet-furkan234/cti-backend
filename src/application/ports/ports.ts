@@ -34,12 +34,19 @@ export interface ISyncJobQueue {
 
 /** Delivers a message through one configured alert channel; rejects with a human-readable reason. */
 export interface IChannelDispatcher {
-  send(channel: { kind: 'slack' | 'smtp' | 'telegram' | 'webhook'; values: Record<string, string> }, message: {
+  send(channel: { kind: 'slack' | 'smtp' | 'telegram' | 'webhook' | 'push'; values: Record<string, string> }, message: {
     subject: string;
     text: string;
+    /** push only: delivered with the notification so the app can open the right screen */
+    data?: Record<string, string>;
     /** e-mail only: overrides the channel's own recipient */
     to?: string;
     attachments?: { filename: string; content: string }[];
   },
   ): Promise<void>;
+}
+
+/** Pushes a message to the mobile app installs of the company in scope; rejects when nothing was delivered. */
+export interface IPushSender {
+  send(message: { subject: string; text: string; data?: Record<string, string> }): Promise<void>;
 }

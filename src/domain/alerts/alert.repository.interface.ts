@@ -1,4 +1,4 @@
-export type ChannelKind = 'slack' | 'smtp' | 'telegram' | 'webhook';
+export type ChannelKind = 'slack' | 'smtp' | 'telegram' | 'webhook' | 'push';
 export type ChannelStatus = 'healthy' | 'degraded' | 'failing';
 export type Trigger = 'kev' | 'critical' | 'sla' | 'epss' | 'sync' | 'digest';
 export type Throttle = 'every' | 'asset6h' | 'daily';

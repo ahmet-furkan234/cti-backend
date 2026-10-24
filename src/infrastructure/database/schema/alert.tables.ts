@@ -5,7 +5,7 @@ import { boolean, index, integer, jsonb, pgTable, text, timestamp, uuid } from '
 export const alertChannels = pgTable('alert_channels', {
   id: uuid('id').primaryKey().defaultRandom(),
   companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
-  kind: text('kind', { enum: ['slack', 'smtp', 'telegram', 'webhook'] }).notNull(),
+  kind: text('kind', { enum: ['slack', 'smtp', 'telegram', 'webhook', 'push'] }).notNull(),
   name: text('name').notNull(),
   /** field id → value; the fields per kind are defined by the web app */
   values: jsonb('values').$type<Record<string, string>>().notNull().default({}),

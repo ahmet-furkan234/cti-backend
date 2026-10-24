@@ -186,9 +186,15 @@ export const listVulnsQuery = z.object({
 });
 export const setVulnStatusBody = z.object({ ids: z.array(uuid).min(1).max(500), status: vulnStatus });
 
+// ---- devices (mobile push)
+// FCM registration tokens are long opaque strings of URL-safe characters and ':'.
+const fcmToken = z.string().min(50).max(4096).regex(/^[A-Za-z0-9_:\-.]+$/);
+export const registerDeviceBody = z.object({ token: fcmToken, platform: z.literal('android') });
+export const removeDeviceBody = z.object({ token: fcmToken });
+
 // ---- alerts
 export const channelBody = z.object({
-  kind: z.enum(['slack', 'smtp', 'telegram', 'webhook']),
+  kind: z.enum(['slack', 'smtp', 'telegram', 'webhook', 'push']),
   name: short(100).min(1),
   values: z.record(z.string().max(40), z.string().max(500)).default({}),
 });

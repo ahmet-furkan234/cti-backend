@@ -22,6 +22,8 @@ export const TYPES = {
   IReportRepository: Symbol.for('IReportRepository'),
   ICompanyRepository: Symbol.for('ICompanyRepository'),
   IChannelDispatcher: Symbol.for('IChannelDispatcher'),
+  IPushSender: Symbol.for('IPushSender'),
+  IPushDeviceRepository: Symbol.for('IPushDeviceRepository'),
 
   // Application services
   EffectivePermissionService: Symbol.for('EffectivePermissionService'),
@@ -111,6 +113,7 @@ export const TYPES = {
   VulnRouter: Symbol.for('VulnRouter'),
   AlertController: Symbol.for('AlertController'),
   AlertRouter: Symbol.for('AlertRouter'),
+  DeviceRouter: Symbol.for('DeviceRouter'),
   ReportController: Symbol.for('ReportController'),
   ReportRouter: Symbol.for('ReportRouter'),
   CompanyUseCases: Symbol.for('CompanyUseCases'),

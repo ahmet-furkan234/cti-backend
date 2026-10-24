@@ -28,3 +28,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Firebase service account keys (secrets)
+secrets/
+*service-account*.json
+*firebase-adminsdk*.json

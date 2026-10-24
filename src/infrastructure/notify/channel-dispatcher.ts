@@ -1,7 +1,8 @@
 import { createHmac } from 'crypto';
-import { injectable } from 'inversify';
+import { inject, injectable } from 'inversify';
 import nodemailer from 'nodemailer';
-import type { IChannelDispatcher } from '../../application/ports/ports.js';
+import type { IChannelDispatcher, IPushSender } from '../../application/ports/ports.js';
+import { TYPES } from '../../shared/tokens.js';
 
 const TIMEOUT_MS = 10_000;
 
@@ -33,6 +34,8 @@ async function post(url: string, body: unknown, headers: Record<string, string> 
 
 @injectable()
 export class ChannelDispatcher implements IChannelDispatcher {
+  constructor(@inject(TYPES.IPushSender) private readonly pusher?: IPushSender) {}
+
   async send(
     channel: Parameters<IChannelDispatcher['send']>[0],
     message: Parameters<IChannelDispatcher['send']>[1],
@@ -40,6 +43,9 @@ export class ChannelDispatcher implements IChannelDispatcher {
     const v = channel.values;
     const full = `${message.subject}\n${message.text}`;
     switch (channel.kind) {
+      case 'push':
+        if (!this.pusher) throw new Error('push is not available');
+        return this.pusher.send({ subject: message.subject, text: message.text, ...(message.data ? { data: message.data } : {}) });
       case 'slack':
         return post(v['url'] ?? '', { text: full, ...(v['channel'] ? { channel: v['channel'] } : {}) });
       case 'telegram':

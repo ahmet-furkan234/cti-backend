@@ -19,6 +19,9 @@ const envSchema = z.object({
   SEED_ADMIN_EMAIL: z.string().email().optional(),
   SEED_ADMIN_PASSWORD: z.string().min(12).optional(),
   LOG_LEVEL: z.string().default('info'),
+  /** Firebase service account (Project settings → Service accounts) used to send mobile push through FCM. Optional: push alerts fail with a clear message until one is set. */
+  FIREBASE_SERVICE_ACCOUNT_FILE: z.string().min(1).optional(),
+  FIREBASE_SERVICE_ACCOUNT_JSON: z.string().min(2).optional(),
 });
 
 @injectable()
@@ -37,6 +40,8 @@ export class EnvConfig {
   readonly SEED_ADMIN_EMAIL: string | undefined;
   readonly SEED_ADMIN_PASSWORD: string | undefined;
   readonly LOG_LEVEL: string;
+  readonly FIREBASE_SERVICE_ACCOUNT_FILE: string | undefined;
+  readonly FIREBASE_SERVICE_ACCOUNT_JSON: string | undefined;
 
   constructor() {
     const parsed = envSchema.safeParse(process.env);
@@ -59,5 +64,7 @@ export class EnvConfig {
     this.SEED_ADMIN_EMAIL = e.SEED_ADMIN_EMAIL;
     this.SEED_ADMIN_PASSWORD = e.SEED_ADMIN_PASSWORD;
     this.LOG_LEVEL = e.LOG_LEVEL;
+    this.FIREBASE_SERVICE_ACCOUNT_FILE = e.FIREBASE_SERVICE_ACCOUNT_FILE;
+    this.FIREBASE_SERVICE_ACCOUNT_JSON = e.FIREBASE_SERVICE_ACCOUNT_JSON;
   }
 }

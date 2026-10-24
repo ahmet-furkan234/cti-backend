@@ -77,6 +77,11 @@ services:
       REDIS_URL: redis://redis:6379
       ALLOWED_ORIGINS: http://localhost:3100
       WEB_BASE_URL: http://localhost:3100
+      # Where the mounted key below appears inside the container (overrides the host path from .env).
+      FIREBASE_SERVICE_ACCOUNT_FILE: /run/secrets/firebase-service-account.json
+    volumes:
+      # Firebase service account key for mobile push (git-ignored folder, read-only).
+      - ./secrets:/run/secrets:ro
     ports:
       - "4000:4000"
 
